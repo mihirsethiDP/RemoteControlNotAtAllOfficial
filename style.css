@@ -259,7 +259,16 @@ select{background:#0f1626;color:var(--text);border:1px solid var(--line);padding
 }
 .scada{display:block;width:100%;height:auto;background:#dfe6ef}
 
-.layout-host{position:relative;width:100%;height:780px;overflow:hidden}
+/* Side-by-side layouts */
+.layout-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:stretch}
+.layout-grid .scada-wrap{position:relative}
+.layout-tag{
+  position:absolute;top:10px;left:14px;z-index:8;padding:5px 12px;font-size:11px;letter-spacing:.6px;
+  text-transform:uppercase;font-weight:700;background:rgba(15,20,32,.78);color:#cfe3ff;border:1px solid rgba(124,180,255,.4);
+  border-radius:999px;backdrop-filter:blur(4px)
+}
+.layout-tag-b{color:#9aa6c0;border-color:#3a4a7a}
+.layout-host{position:relative;width:100%;height:640px;overflow:hidden}
 .layout-svg{display:block;width:100%;height:100%}
 .layout-svg text{font-family:system-ui,Segoe UI,Inter,sans-serif}
 .layout-svg .lay-pipe{pointer-events:none}
@@ -268,21 +277,108 @@ select{background:#0f1626;color:var(--text);border:1px solid var(--line);padding
 .layout-svg .lay-blower:hover .fan circle,
 .layout-svg .lay-valve:hover .valve-body{filter:brightness(1.15)}
 
-/* Clickable SBR_TANK affordance */
+/* Clickable SBR_TANK affordance — sustained, no hover state */
 .layout-svg .lay-sbr-tank.clickable-tank{cursor:pointer}
-.layout-svg .lay-sbr-tank.clickable-tank:hover .tank-wall{stroke:#7c5cff;stroke-width:4}
-.layout-svg .peek-layer{opacity:0;transition:opacity .25s ease}
-.layout-svg .lay-sbr-tank.clickable-tank:hover .peek-layer{opacity:1}
-.layout-svg .inspect-badge{animation:badgePulse 2s ease-in-out infinite}
-.layout-svg .lay-sbr-tank.clickable-tank:hover .inspect-badge{animation:none;filter:brightness(1.2)}
-@keyframes badgePulse{0%,100%{opacity:.85}50%{opacity:1;filter:drop-shadow(0 0 6px rgba(124,92,255,.5))}}
+.layout-svg .peek-layer{opacity:.55} /* always visible */
+.layout-svg .inspect-badge{animation:badgePulse 2.4s ease-in-out infinite}
+.layout-svg .corner-ribbon rect{animation:ribbonGlow 2s ease-in-out infinite}
+.layout-svg .tap-icon{animation:tapPulse 1.8s ease-in-out infinite;transform-origin:center;transform-box:fill-box}
+@keyframes badgePulse{
+  0%,100%{filter:drop-shadow(0 0 0 rgba(124,180,255,0))}
+  50%{filter:drop-shadow(0 0 8px rgba(124,180,255,.6))}
+}
+@keyframes ribbonGlow{0%,100%{opacity:.7}50%{opacity:1}}
+@keyframes tapPulse{
+  0%,100%{transform:scale(1);opacity:1}
+  50%{transform:scale(1.18);opacity:.8}
+}
 @keyframes tankBubble{
   0%{transform:translateY(0) scale(.6);opacity:0}
   10%{opacity:.85}
   90%{opacity:.6}
   100%{transform:translateY(-280px) scale(1.1);opacity:0}
 }
-.view-viz.remote .scada-wrap{box-shadow:inset 0 0 0 3px rgba(124,92,255,.5)}
+.view-viz.remote .scada-wrap[data-copy="A"]{box-shadow:inset 0 0 0 3px rgba(124,92,255,.5)}
+
+/* DIM-MODE: section selected → out-of-section cells dim, in-section pop */
+.layout-svg.dim-mode .layer-pipes .lay-pipe.out-section,
+.layout-svg.dim-mode g[data-cell-id].out-section{
+  opacity:.18;filter:saturate(.4) blur(.3px);transition:opacity .35s,filter .35s
+}
+.layout-svg.dim-mode g[data-cell-id].in-section{filter:drop-shadow(0 0 6px rgba(78,161,255,.35));transition:filter .35s}
+.layout-svg.dim-mode .layer-pipes .lay-pipe.in-section{filter:drop-shadow(0 0 4px rgba(78,161,255,.4))}
+
+/* Blower (screenshot-inspired): box + LED indicator + airflow lines emerging */
+.layout-svg .lay-blower .blower-led{transition:fill .2s}
+.layout-svg .lay-blower.on .blower-led{fill:#22c55e;filter:drop-shadow(0 0 4px rgba(34,197,94,.7))}
+.layout-svg .lay-blower:not(.on) .blower-led{fill:#c92626}
+.layout-svg .lay-blower .airflow{opacity:0;stroke-dasharray:5 8}
+.layout-svg .lay-blower.on .airflow{opacity:1;animation:airflow 1.1s linear infinite}
+.layout-svg .lay-blower .blower-body{transition:filter .2s}
+.layout-svg .lay-blower.on .blower-body{filter:drop-shadow(0 0 6px rgba(34,197,94,.25))}
+@keyframes airflow{to{stroke-dashoffset:-26}}
+
+/* Master panel progressive disclosure: slides in when section is selected */
+.master:not(.hidden){animation:masterIn .35s ease-out}
+@keyframes masterIn{from{opacity:0;transform:translateX(16px) scale(.94)}to{opacity:1;transform:none}}
+
+/* Section option: coming-soon variant */
+.section-option.coming-soon{cursor:not-allowed;opacity:.55}
+.section-option.coming-soon:hover{background:transparent}
+.section-option.coming-soon .opt-state{display:none}
+.section-option .opt-tag{
+  font-size:9.5px;letter-spacing:.6px;text-transform:uppercase;
+  padding:2px 7px;border-radius:5px;background:#2a3350;color:#9aa6c0;font-weight:700;flex:none
+}
+.section-option.coming-soon .opt-tag{background:rgba(245,158,11,.15);color:#f5c878;border:1px solid rgba(245,158,11,.35)}
+
+/* ========== FUTURISTIC REMOTE LOADER ========== */
+.rl{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(circle at 50% 50%, rgba(8,12,24,.85), rgba(2,4,10,.96));backdrop-filter:blur(8px)}
+.rl.hidden{display:none}
+.rl-bg{position:absolute;inset:0;overflow:hidden;opacity:.7}
+.rl-grid{width:100%;height:100%;animation:rlGridDrift 14s linear infinite}
+@keyframes rlGridDrift{from{transform:translate(0,0)}to{transform:translate(40px,40px)}}
+.rl-bg:before, .rl-bg:after{
+  content:"";position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,#7cc4ff,transparent);
+  opacity:.6;animation:rlScan 2.6s ease-in-out infinite
+}
+.rl-bg:after{animation-delay:1.3s;background:linear-gradient(90deg,transparent,#a37cff,transparent)}
+@keyframes rlScan{
+  0%{top:0;opacity:0}10%{opacity:.7}50%{opacity:1}90%{opacity:.5}100%{top:100%;opacity:0}
+}
+
+.rl-card{position:relative;display:flex;flex-direction:column;align-items:center;gap:32px;padding:48px 60px;
+  border:1px solid rgba(124,180,255,.25);border-radius:18px;
+  background:linear-gradient(180deg,rgba(15,20,40,.85),rgba(8,12,24,.85));
+  box-shadow:0 0 60px rgba(124,180,255,.15), inset 0 0 30px rgba(124,180,255,.05);
+  font-family:"SF Mono","JetBrains Mono",Consolas,monospace
+}
+.rl-card:before{content:"";position:absolute;inset:0;border-radius:18px;
+  background:linear-gradient(135deg,rgba(124,180,255,.08),transparent 40%,rgba(124,92,255,.08));pointer-events:none}
+
+.rl-rings{position:relative;width:140px;height:140px}
+.rl-ring{position:absolute;inset:0;border:1.5px solid rgba(124,180,255,.4);border-radius:50%;border-top-color:#7cc4ff;
+  animation:rlSpin 1.6s linear infinite}
+.rl-ring.r2{inset:14px;border-color:rgba(163,124,255,.35);border-top-color:#a37cff;animation-duration:2.2s;animation-direction:reverse}
+.rl-ring.r3{inset:28px;border-color:rgba(124,180,255,.25);border-top-color:#cfe3ff;animation-duration:1.1s}
+.rl-core{position:absolute;inset:0;width:100%;height:100%}
+.rl-sweep{transform-origin:50% 50%;animation:rlSpin 1.4s linear infinite}
+@keyframes rlSpin{to{transform:rotate(360deg)}}
+
+.rl-text{text-align:center;display:flex;flex-direction:column;align-items:center;gap:14px;min-width:380px}
+.rl-title{font-size:11px;letter-spacing:5px;color:#7cc4ff;font-weight:700;
+  text-shadow:0 0 12px rgba(124,180,255,.6)}
+.rl-stage{font-size:13px;color:#cfe3ff;letter-spacing:.5px;min-height:18px}
+.rl-bar{position:relative;width:100%;height:3px;background:rgba(124,180,255,.15);border-radius:2px;overflow:hidden}
+.rl-bar-fill{position:absolute;inset:0 100% 0 0;background:linear-gradient(90deg,#7cc4ff,#a37cff);
+  box-shadow:0 0 12px rgba(124,180,255,.6);transition:right 3s linear}
+.rl-meta{display:flex;gap:24px;font-size:10px;letter-spacing:1px;color:#8fa3c7;text-transform:uppercase}
+.rl-meta span{display:flex;align-items:center;gap:6px}
+.rl-dot{width:7px;height:7px;border-radius:50%;background:#3a4a7a;transition:background .25s,box-shadow .25s}
+.rl-dot.ok{background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,.6)}
+.rl-dot.wait{background:#f59e0b;animation:dotpulse 1.5s infinite}
+.rl-foot{font-size:9.5px;letter-spacing:2.5px;color:#5a6a8a;margin-top:6px}
 
 /* SCADA elements use light SCADA palette inside SVG; HTML overlays sit on top */
 .scada text{font-family:system-ui,Segoe UI,Inter,sans-serif}

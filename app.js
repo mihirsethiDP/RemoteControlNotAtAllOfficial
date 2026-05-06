@@ -115,6 +115,26 @@ const LABEL_TO_DEVICE = {
 let LAYOUT = null;     // { cells, idIndex, bbox, viewBox, blowerOrderIds }
 let CELL_BY_ID = {};
 
+// Sections registry — only 'sbr' is wired in this prototype
+const SECTIONS = [
+  { id: "sbr",        name: "SBR Cycle",         sub: "17 equipment · 2 basins · interlocked",     real: true },
+  { id: "sludge",     name: "Sludge Handling",   sub: "Thickeners · Centrifuges · Disposal pit",   real: false },
+  { id: "dosing",     name: "Chemical Dosing",   sub: "DWPE · FeCl3 · NaOCl pumps",                real: false },
+  { id: "uf",         name: "UF Filtration",     sub: "3 UF skids · CIP cycle",                    real: false },
+  { id: "ro",         name: "RO System",         sub: "HP pumps · 2 RO trains",                    real: false },
+  { id: "inlet",      name: "Inlet & Screening", sub: "Coarse screen · Grit chamber",              real: false },
+];
+
+// SBR section bbox in JointJS coordinates (used for dim-mode hit-testing)
+const SBR_BBOX = (window.SBR_BBOX) || { minX:1500, minY:-1100, maxX:3700, maxY:1200 };
+function isCellInSbr(c) {
+  if (!c.position) return false;
+  const x = c.position.x, y = c.position.y;
+  const w = c.size?.width||0, h = c.size?.height||0;
+  return (x + w >= SBR_BBOX.minX) && (x <= SBR_BBOX.maxX)
+      && (y + h >= SBR_BBOX.minY) && (y <= SBR_BBOX.maxY);
+}
+
 function loadLayout() {
   const cells = (window.SBR_CELLS || []).slice();
   const elements = cells.filter(c => c.type !== "Pipe" && c.type !== "standard.Link" && c.position);
@@ -203,7 +223,7 @@ function drawSbrTank(c) {
   }
   g.appendChild(bubbles);
 
-  // === PEEK / X-RAY LAYER (revealed on hover) ===
+  // === PEEK / X-RAY LAYER (always visible at 55% — no hover) ===
   const peek = svgEl("g", { class: "peek-layer" });
   // Dashed cutaway "window" on the right (Zone-3 area where pumps live)
   const px0 = w*0.50, py0 = h*0.42, pw = w*0.45, ph = h*0.48;
@@ -235,17 +255,29 @@ function drawSbrTank(c) {
   });
   g.appendChild(peek);
 
-  // === MAGNIFYING-LENS BADGE (always visible, pulses) ===
+  // === Permanent CORNER RIBBON: NESTED EQUIPMENT ===
+  const ribbon = svgEl("g", { class: "corner-ribbon" });
+  ribbon.appendChild(svgEl("rect", { x: w-150, y: 8, width: 142, height: 22, rx: 4, fill: "#7c5cff", opacity:.9 }));
+  const rt = svgEl("text", { x: w-79, y: 23, "text-anchor":"middle", "font-size":10, fill:"#fff", "font-weight":"700", "letter-spacing":"1.2" });
+  rt.textContent = "⊞  4 NESTED PUMPS";
+  ribbon.appendChild(rt);
+  g.appendChild(ribbon);
+
+  // === Permanent INSPECT BADGE (cursor + pulse, no hover) ===
   const badge = svgEl("g", { class: "inspect-badge" });
-  const badgeY = h - 36;
-  badge.appendChild(svgEl("rect", { x: 14, y: badgeY, width: 230, height: 28, rx: 14, fill: "#0d2240", stroke:"#7c5cff", "stroke-width":1.5 }));
-  badge.appendChild(svgEl("circle", { cx: 30, cy: badgeY+14, r: 7, fill:"none", stroke:"#cfe3ff", "stroke-width":1.8 }));
-  badge.appendChild(svgEl("line", { x1: 35, y1: badgeY+19, x2: 41, y2: badgeY+25, stroke:"#cfe3ff", "stroke-width":1.8, "stroke-linecap":"round" }));
-  const blbl = svgEl("text", { x: 50, y: badgeY+18, "font-size": 12, fill: "#cfe3ff", "font-weight":"600" });
-  blbl.textContent = "Inspect · 4 pumps nested inside";
+  const badgeY = h - 38;
+  badge.appendChild(svgEl("rect", { x: 14, y: badgeY, width: 250, height: 30, rx: 15, fill: "#0d2240", stroke:"#7cc4ff", "stroke-width":1.5 }));
+  // Animated tap cursor icon
+  const tap = svgEl("g", { class:"tap-icon" });
+  tap.setAttribute("transform", `translate(${30}, ${badgeY+15})`);
+  tap.appendChild(svgEl("circle", { cx:0, cy:0, r:9, fill:"none", stroke:"#7cc4ff", "stroke-width":1.5, opacity:.6 }));
+  tap.appendChild(svgEl("path", { d:"M-3,-2 L-3,5 L0,5 L0,8 L4,4 L4,-2 Z", fill:"#7cc4ff" }));
+  badge.appendChild(tap);
+  const blbl = svgEl("text", { x: 50, y: badgeY+19, "font-size": 12, fill: "#cfe3ff", "font-weight":"600" });
+  blbl.textContent = "Tap to view internals";
   badge.appendChild(blbl);
-  // tiny "click" hint chevron
-  const chev = svgEl("text", { x: 230, y: badgeY+18, "font-size": 12, fill:"#9fc8ff" });
+  // chevron
+  const chev = svgEl("text", { x: 250, y: badgeY+19, "font-size": 14, fill:"#7cc4ff", "font-weight":"700" });
   chev.textContent = "›";
   badge.appendChild(chev);
   g.appendChild(badge);
@@ -301,24 +333,41 @@ function drawValve(c) {
 }
 
 function drawBlower(c) {
-  const g = elGroup(c, "lay-blower");
-  const w = c.size.width, h = c.size.height;
   const dev = cellDeviceId(c);
   const on = dev && DEVICES[dev]?.on;
-  // Body
-  g.appendChild(svgEl("rect", { x:0, y:0, width:w, height:h, rx:8, fill:"#dfe6ef", stroke:"#23344e", "stroke-width":2 }));
-  // Impeller circle
-  const cx = w/2, cy = h/2;
-  g.appendChild(svgEl("circle", { cx, cy, r: Math.min(w,h)*0.32, fill:"#94a3b8", stroke:"#23344e", "stroke-width":1.5 }));
-  const fan = svgEl("g", { class:"fan", style: on ? "transform-origin:center;transform-box:fill-box;animation:spin 1s linear infinite" : ""});
-  fan.setAttribute("transform", `translate(${cx},${cy})`);
-  for (let i=0;i<3;i++){
-    const blade = svgEl("path", { d: "M0,-30 L9,-2 L-9,-2 Z", fill: on ? "#22a043" : "#c92626" });
-    blade.setAttribute("transform", `rotate(${i*120})`);
-    fan.appendChild(blade);
+  const g = elGroup(c, "lay-blower" + (on ? " on" : ""));
+  const w = c.size.width, h = c.size.height;
+  // Outer chassis body (light, like screenshot)
+  g.appendChild(svgEl("rect", { x:0, y:0, width:w, height:h, rx:6, fill:"#e8eef6", stroke:"#23344e", "stroke-width":2, class:"blower-body" }));
+  // Inner darker frame (motor housing)
+  g.appendChild(svgEl("rect", { x:6, y:6, width:w-12, height:h-12, rx:4, fill:"none", stroke:"#7892ad", "stroke-width":1, "stroke-dasharray":"3 3" }));
+  // Cooling-fin stripes on body (industrial detail)
+  for (let i=0;i<5;i++){
+    const fy = 14 + i*(h-28)/5;
+    g.appendChild(svgEl("line", { x1:14, y1:fy, x2:w-14, y2:fy, stroke:"#9aa6c0", "stroke-width":1, opacity:.55 }));
   }
-  fan.appendChild(svgEl("circle", { r:6, fill:"#101010" }));
-  g.appendChild(fan);
+  // LED status (top-left)
+  g.appendChild(svgEl("rect", { x:10, y:10, width:14, height:14, rx:2, fill:"#1a1a1a", stroke:"#3a3a3a" }));
+  g.appendChild(svgEl("circle", { cx:17, cy:17, r:5, class:"blower-led", fill:"#c92626" }));
+  // Airflow nozzle (right side, where pipe attaches in JointJS)
+  const noz = svgEl("g");
+  noz.appendChild(svgEl("path", { d:`M ${w-18} ${h*.4} L ${w} ${h*.5} L ${w-18} ${h*.6} Z`, fill:"#7892ad", stroke:"#23344e", "stroke-width":1.2 }));
+  g.appendChild(noz);
+  // Airflow lines emanating to the right (animated when ON)
+  const flow = svgEl("g", { class:"airflow" });
+  for (let i=0;i<3;i++){
+    flow.appendChild(svgEl("path", {
+      d:`M ${w+2} ${h*.5 - 14 + i*14} q 16 -6 32 0 t 32 0`,
+      fill:"none", stroke:"#22c55e", "stroke-width":2, "stroke-linecap":"round"
+    }));
+  }
+  g.appendChild(flow);
+  // Equipment tag plate (centered, "BLW")
+  const tagW = 36, tagH = 14;
+  g.appendChild(svgEl("rect", { x:w/2-tagW/2, y:h/2-tagH/2, width:tagW, height:tagH, rx:2, fill:"#1c2742", stroke:"#3e4b73" }));
+  const tag = svgEl("text", { x:w/2, y:h/2+4, "text-anchor":"middle", "font-size":10, fill:"#9fc8ff", "font-weight":"700", "font-family":"monospace" });
+  tag.textContent = "BLW";
+  g.appendChild(tag);
   return g;
 }
 
@@ -461,54 +510,56 @@ function drawPipe(p) {
   if (!a || !b) return null;
   const verts = (p.vertices || []).map(v => `${v.x},${v.y}`);
   const pts = [`${a.x},${a.y}`, ...verts, `${b.x},${b.y}`];
-  const g = svgEl("g", { class: "lay-pipe" });
-  // Outer pipe
+  const g = svgEl("g", { class: "lay-pipe", "data-pipe-ends": `${p.source.id}|${p.target.id}` });
   g.appendChild(svgEl("polyline", { points: pts.join(" "), fill:"none", stroke:"#7e96b3", "stroke-width":8, "stroke-linejoin":"miter", "stroke-linecap":"butt" }));
-  // Inner color (liquid)
   g.appendChild(svgEl("polyline", { points: pts.join(" "), fill:"none", stroke: p.liquidColor || "#cfd8ee", "stroke-width":4, "stroke-linejoin":"miter", "stroke-linecap":"butt", opacity:.9 }));
   return g;
 }
 
-// Renders the layout into #layoutHost as SVG
-function renderLayout() {
+// Renders the layout into a host element. interactive=false skips click handlers / badges.
+function renderLayoutInto(hostId, interactive) {
   if (!LAYOUT) loadLayout();
-  const host = document.getElementById("layoutHost");
+  const host = document.getElementById(hostId);
   if (!host || !LAYOUT) return;
   host.innerHTML = "";
-
   const { bbox, elements, links } = LAYOUT;
   const svg = svgEl("svg", {
-    class: "layout-svg",
+    class: "layout-svg" + (interactive ? "" : " non-interactive"),
     viewBox: `${bbox.minX} ${bbox.minY} ${bbox.w} ${bbox.h}`,
     preserveAspectRatio: "xMidYMid meet"
   });
   host.appendChild(svg);
-
-  // Background grid is provided by CSS on .scada-wrap
-
-  // Order: pipes first (behind), then non-tanks, then tanks, then text labels
   const layerPipes = svgEl("g", { class:"layer-pipes" });
   const layerBack  = svgEl("g", { class:"layer-back"  });
   const layerEquip = svgEl("g", { class:"layer-equip" });
   const layerText  = svgEl("g", { class:"layer-text"  });
   svg.append(layerPipes, layerBack, layerEquip, layerText);
-
   for (const p of links) { const el = drawPipe(p); if (el) layerPipes.appendChild(el); }
-
   for (const c of elements) {
     const drawer = TYPE_DRAWERS[c.type];
     if (!drawer) continue;
     const node = drawer(c);
     if (!node) continue;
+    if (!interactive) {
+      // Disable interactivity on Layout B (reference)
+      node.style.pointerEvents = "none";
+      // Strip badges/ribbons from non-interactive copy so it looks "clean"
+      node.querySelectorAll(".inspect-badge, .corner-ribbon").forEach(n => n.remove());
+    }
     if (c.type === "SBR_TANK" || c.type === "OS_TANK" || c.type === "OS_TANK_DF") layerBack.appendChild(node);
     else if (c.type === "LABEL_WIDGET" || c.type === "NUMBER_SENSOR") layerText.appendChild(node);
     else layerEquip.appendChild(node);
   }
+}
 
-  // After drawing, anchor tank-expand buttons on top of each SBR_TANK
+function renderLayout() {
+  renderLayoutInto("layoutHost", true);
+  renderLayoutInto("layoutHostB", false);
   positionTankExpands();
-  // Anchor remote-control overlays (HTML) on each interactive cell
   positionOverlays();
+  // Apply current dim/section visuals to both copies
+  applyDimMode("scadaWrap", selectedSection === "sbr");
+  applyDimMode("scadaWrapB", false);
 }
 
 function positionTankExpands() {
@@ -727,67 +778,102 @@ function applySectionSelectionVisuals() {
   const isSel = selectedSection === "sbr";
   // Engineering group highlight
   document.querySelector(".group")?.classList.toggle("section-selected", isSel);
-  // Master toggle gating
-  const masterWrap = document.querySelector(".master");
-  const masterInput = $("#masterRemote");
-  masterWrap?.classList.toggle("disabled", !isSel && !remoteActive);
-  if (masterInput) masterInput.disabled = !isSel && !remoteActive;
+  // Master panel: progressive disclosure
+  const masterPanel = document.getElementById("masterPanel");
+  if (masterPanel) masterPanel.classList.toggle("hidden", !isSel && !remoteActive);
   // Section trigger state
   const trigger = $("#sectionBtn");
   if (trigger) {
-    trigger.classList.toggle("selected", isSel);
-    $("#sectionName").textContent = isSel ? "SBR Cycle" : "None selected";
+    const sec = SECTIONS.find(s => s.id === selectedSection);
+    trigger.classList.toggle("selected", !!sec);
+    $("#sectionName").textContent = sec ? sec.name : "None selected";
   }
-  // Selected option in menu
+  // Mark selected option in menu
   document.querySelectorAll(".section-option").forEach(o => {
-    o.classList.toggle("selected", isSel && o.dataset.section === "sbr");
+    o.classList.toggle("selected", o.dataset.section === selectedSection);
   });
-  // Plant layout SVG frame
+  // Plant Layout: dim-mode + section frame on layout A only
+  applyDimMode("scadaWrap", isSel);
+  applyDimMode("scadaWrapB", false); // layout B never has selection
   drawSectionFrame(isSel);
 }
 
-function drawSectionFrame(isSel) {
-  const wrap = document.getElementById("scadaWrap");
-  if (!wrap || !LAYOUT) return;
-  let frame = wrap.querySelector(".section-frame");
-  if (!isSel) { frame?.remove(); return; }
-  if (!frame) {
-    frame = document.createElement("div");
-    frame.className = "section-frame";
-    frame.innerHTML = `<span class="frame-tag">Section · SBR Cycle</span>`;
-    wrap.appendChild(frame);
-  }
-  frame.classList.toggle("remote", remoteActive);
-  // Position frame around the SVG bbox of section elements
+function applyDimMode(wrapId, isSel) {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
   const svg = wrap.querySelector(".layout-svg");
   if (!svg) return;
-  // Use union of bounding rects of all rendered cell groups
-  let l=Infinity,t=Infinity,r=-Infinity,b=-Infinity;
-  svg.querySelectorAll("g[data-cell-id]").forEach(node => {
-    const bb = node.getBoundingClientRect();
-    if (bb.left < l) l = bb.left;
-    if (bb.top < t) t = bb.top;
-    if (bb.right > r) r = bb.right;
-    if (bb.bottom > b) b = bb.bottom;
-  });
-  if (!isFinite(l)) return;
-  const wr = wrap.getBoundingClientRect();
-  const pad = 16;
-  frame.style.left   = (l - wr.left - pad) + "px";
-  frame.style.top    = (t - wr.top  - pad) + "px";
-  frame.style.width  = (r - l + pad*2) + "px";
-  frame.style.height = (b - t + pad*2) + "px";
+  svg.classList.toggle("dim-mode", isSel);
+  // Tag every cell as in/out of section based on bbox membership
+  if (LAYOUT) {
+    svg.querySelectorAll("g[data-cell-id]").forEach(node => {
+      const cell = LAYOUT.idx[node.dataset.cellId];
+      if (!cell) return;
+      const inS = isCellInSbr(cell);
+      node.classList.toggle("in-section", inS);
+      node.classList.toggle("out-section", !inS);
+    });
+    svg.querySelectorAll(".lay-pipe").forEach(pn => {
+      // pipe in-section if BOTH endpoints in section
+      const ids = pn.dataset.pipeEnds?.split("|") || [];
+      const a = LAYOUT.idx[ids[0]], b = LAYOUT.idx[ids[1]];
+      const inS = a && b && isCellInSbr(a) && isCellInSbr(b);
+      pn.classList.toggle("in-section", !!inS);
+      pn.classList.toggle("out-section", !inS);
+    });
+  }
 }
 
-function selectSection(name) {
-  // name: 'sbr' or null
-  if (remoteActive && selectedSection !== name) {
+function drawSectionFrame(isSel) {
+  // Dim-mode is now the primary highlight on Plant Layout; the bulky frame is removed.
+  // Keep API stable for future per-section bbox rect.
+  document.querySelectorAll(".section-frame").forEach(n => n.remove());
+}
+
+function selectSection(id) {
+  if (remoteActive && selectedSection !== id) {
     toast("Release remote control before changing section selection.", "warn");
     return;
   }
-  selectedSection = name;
+  const sec = SECTIONS.find(s => s.id === id);
+  if (sec && !sec.real) {
+    toast(`${sec.name} is a demo section · no equipment wired in this prototype`, "warn");
+    return; // do not select dummies
+  }
+  selectedSection = id;
   applySectionSelectionVisuals();
-  toast(name ? "SBR Cycle selected · master remote enabled" : "Section deselected", "ok");
+  toast(id ? `${sec.name} selected · remote control unlocked` : "Section deselected", "ok");
+}
+
+function renderSectionMenu() {
+  const list = document.getElementById("sectionMenuList");
+  if (!list) return;
+  list.innerHTML = "";
+  for (const s of SECTIONS) {
+    const btn = document.createElement("button");
+    btn.className = "section-option" + (s.real ? "" : " coming-soon");
+    btn.dataset.section = s.id;
+    btn.setAttribute("role", "option");
+    btn.innerHTML = `
+      <span class="opt-icon" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 6h16v12H4z"/><path d="M4 12h16"/><circle cx="9" cy="15" r="1.4"/><circle cx="13" cy="15" r="1.4"/><circle cx="17" cy="15" r="1.4"/>
+        </svg>
+      </span>
+      <div class="opt-body">
+        <div class="opt-title">${s.name}</div>
+        <div class="opt-sub">${s.sub}</div>
+      </div>
+      ${s.real ? '<span class="opt-state"></span>' : '<span class="opt-tag">Demo</span>'}
+    `;
+    btn.addEventListener("click", e => {
+      e.stopPropagation();
+      if (!s.real) { selectSection(s.id); return; } // toast only
+      selectSection(selectedSection === s.id ? null : s.id);
+      setMenuOpen(false);
+    });
+    list.appendChild(btn);
+  }
 }
 
 function setMenuOpen(open) {
@@ -908,6 +994,42 @@ function startTimerTick() {
   remoteTimerId = setInterval(tick, 500);
 }
 
+// ---------- Futuristic 3-second remote loader ----------
+function runRemoteLoader(onDone) {
+  const overlay = document.getElementById("remoteLoader");
+  const stage = document.getElementById("rlStage");
+  const fill  = document.getElementById("rlBarFill");
+  const dInt  = document.getElementById("rlDotInterlock");
+  const dCtl  = document.getElementById("rlDotControl");
+  if (!overlay) { onDone?.(); return; }
+  overlay.classList.remove("hidden");
+  fill.style.transition = "none"; fill.style.right = "100%";
+  dInt.className = "rl-dot wait"; dCtl.className = "rl-dot wait";
+  // kick the bar
+  requestAnimationFrame(() => {
+    fill.style.transition = "right 3s linear";
+    fill.style.right = "0%";
+  });
+  const stages = [
+    { t: 0,    text: "› Authenticating operator session" },
+    { t: 700,  text: "› Verifying interlock matrix · 17 devices",
+                onEnter: () => { dInt.className = "rl-dot ok"; } },
+    { t: 1700, text: "› Negotiating control transfer with PLC" },
+    { t: 2500, text: "› Engaging remote channel",
+                onEnter: () => { dCtl.className = "rl-dot ok"; } },
+    { t: 2950, text: "✓ Remote control engaged" },
+  ];
+  const timers = stages.map(s => setTimeout(() => {
+    stage.textContent = s.text;
+    s.onEnter?.();
+  }, s.t));
+  setTimeout(() => {
+    overlay.classList.add("hidden");
+    timers.forEach(clearTimeout);
+    onDone?.();
+  }, 3050);
+}
+
 let toastT;
 function toast(msg, kind="") {
   const t = $("#toast");
@@ -937,15 +1059,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const open = $("#sectionBtn").getAttribute("aria-expanded") === "true";
     setMenuOpen(!open);
   });
-  // Menu options
-  document.querySelectorAll(".section-option").forEach(opt => {
-    opt.addEventListener("click", e => {
-      e.stopPropagation();
-      const sec = opt.dataset.section;
-      selectSection(selectedSection === sec ? null : sec);
-      setMenuOpen(false);
-    });
-  });
+  renderSectionMenu();
   // Click outside closes menu
   document.addEventListener("click", e => {
     if (!e.target.closest(".section-picker")) setMenuOpen(false);
@@ -978,7 +1092,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#confirmRemote").addEventListener("click", () => {
     const dur = parseInt($("#duration").value, 10);
     $("#modal").classList.add("hidden");
-    activateRemote(dur);
+    runRemoteLoader(() => activateRemote(dur));
   });
   $("#cancelRelease").addEventListener("click", () => $("#releaseModal").classList.add("hidden"));
   $("#confirmRelease").addEventListener("click", () => { $("#releaseModal").classList.add("hidden"); releaseRemote(); });
