@@ -15,6 +15,10 @@
       <div class="sub">Remote Control Prototype</div>
     </div>
   </div>
+  <nav class="tabs">
+    <button class="tab active" data-view="engineering">Engineering View</button>
+    <button class="tab" data-view="viz">Visualization (SCADA)</button>
+  </nav>
   <div class="topbar-right">
     <div id="timerChip" class="timer-chip hidden">
       <span class="dot"></span><span id="timerLabel">--:--</span>
@@ -31,111 +35,145 @@
   </div>
 </header>
 
-<main class="stage">
-  <!-- Group: SBR Aeration -->
+<!-- ========================= ENGINEERING VIEW ========================= -->
+<main class="stage view-engineering" id="view-engineering">
   <section class="group" data-group="sbr">
     <div class="group-label">Group · SBR Aeration <span class="count" id="sbrCount">0 equipment</span></div>
 
     <div class="sbr-grid">
-      <!-- Inlet valves (left column) -->
       <div class="col valves">
-        <div class="device" data-id="SBR1_INLET" data-type="valve">
-          <div class="dev-icon valve">⛒</div>
-          <div class="dev-name">SBR-1 Inlet Valve</div>
-          <div class="dev-controls"></div>
-        </div>
-        <div class="device" data-id="SBR2_INLET" data-type="valve">
-          <div class="dev-icon valve">⛒</div>
-          <div class="dev-name">SBR-2 Inlet Valve</div>
-          <div class="dev-controls"></div>
-        </div>
+        <div class="device" data-id="SBR1_INLET"><div class="dev-icon valve">⛒</div><div class="dev-name">SBR-1 Inlet Valve</div><div class="dev-controls"></div></div>
+        <div class="device" data-id="SBR2_INLET"><div class="dev-icon valve">⛒</div><div class="dev-name">SBR-2 Inlet Valve</div><div class="dev-controls"></div></div>
       </div>
-
-      <!-- Blowers (center column) -->
       <div class="col blowers">
-        <div class="device" data-id="BLOWER1" data-type="blower">
-          <div class="dev-icon blower">✱</div>
-          <div class="dev-name">SBR Blower 1</div>
-          <div class="dev-controls"></div>
-        </div>
-        <div class="device" data-id="BLOWER2" data-type="blower">
-          <div class="dev-icon blower">✱</div>
-          <div class="dev-name">SBR Blower 2</div>
-          <div class="dev-controls"></div>
-        </div>
-        <div class="device" data-id="BLOWER3" data-type="blower">
-          <div class="dev-icon blower">✱</div>
-          <div class="dev-name">SBR Blower 3</div>
-          <div class="dev-controls"></div>
-        </div>
-        <div class="device" data-id="BLOWER4" data-type="blower">
-          <div class="dev-icon blower">✱</div>
-          <div class="dev-name">SBR Blower 4</div>
-          <div class="dev-controls"></div>
-        </div>
+        <div class="device" data-id="BLOWER1"><div class="dev-icon blower">✱</div><div class="dev-name">SBR Blower 1</div><div class="dev-controls"></div></div>
+        <div class="device" data-id="BLOWER2"><div class="dev-icon blower">✱</div><div class="dev-name">SBR Blower 2</div><div class="dev-controls"></div></div>
+        <div class="device" data-id="BLOWER3"><div class="dev-icon blower">✱</div><div class="dev-name">SBR Blower 3</div><div class="dev-controls"></div></div>
+        <div class="device" data-id="BLOWER4"><div class="dev-icon blower">✱</div><div class="dev-name">SBR Blower 4</div><div class="dev-controls"></div></div>
       </div>
-
-      <!-- Air-line valves -->
       <div class="col air-valves">
-        <div class="device" data-id="AIR1" data-type="valve">
-          <div class="dev-icon valve">⛒</div>
-          <div class="dev-name">SBR-1 Air Inlet Line</div>
-          <div class="dev-controls"></div>
-        </div>
-        <div class="device" data-id="AIR2" data-type="valve">
-          <div class="dev-icon valve">⛒</div>
-          <div class="dev-name">SBR-2 Air Inlet Line</div>
-          <div class="dev-controls"></div>
-        </div>
+        <div class="device" data-id="AIR1"><div class="dev-icon valve">⛒</div><div class="dev-name">SBR-1 Air Inlet Line</div><div class="dev-controls"></div></div>
+        <div class="device" data-id="AIR2"><div class="dev-icon valve">⛒</div><div class="dev-name">SBR-2 Air Inlet Line</div><div class="dev-controls"></div></div>
       </div>
-
-      <!-- CASS Basins (clickable tanks) -->
       <div class="col tanks">
-        <div class="tank" data-tank="BASIN1">
+        <div class="tank-card" data-tank="BASIN1">
           <div class="tank-shell">
             <div class="tank-water"></div>
             <div class="tank-title">Zone-3 · CASS Basin 1</div>
-            <div class="tank-sub">4500 KL</div>
-            <div class="inside-chip">
-              <span class="pulse"></span>
-              <span class="inside-text">⊕ <b id="basin1Count">4</b> inside · click to open</span>
-            </div>
+            <div class="tank-sub">4500 KL · <span class="inside-summary" id="basin1Summary">— inside</span></div>
+            <button class="disclosure-btn" data-tank="BASIN1"><span class="caret">▸</span> <span class="dlabel">Show internal equipment</span></button>
           </div>
+          <div class="tank-internals hidden" data-tank-internals="BASIN1"></div>
         </div>
-        <div class="tank" data-tank="BASIN2">
+        <div class="tank-card" data-tank="BASIN2">
           <div class="tank-shell">
             <div class="tank-water"></div>
             <div class="tank-title">Zone-3 · CASS Basin 2</div>
-            <div class="tank-sub">4500 KL</div>
-            <div class="inside-chip">
-              <span class="pulse"></span>
-              <span class="inside-text">⊕ <b id="basin2Count">4</b> inside · click to open</span>
-            </div>
+            <div class="tank-sub">4500 KL · <span class="inside-summary" id="basin2Summary">— inside</span></div>
+            <button class="disclosure-btn" data-tank="BASIN2"><span class="caret">▸</span> <span class="dlabel">Show internal equipment</span></button>
           </div>
+          <div class="tank-internals hidden" data-tank-internals="BASIN2"></div>
         </div>
-
-        <!-- Decanter, used by interlocks -->
-        <div class="device decanter" data-id="DECANTER" data-type="decanter">
-          <div class="dev-icon decanter">⇊</div>
-          <div class="dev-name">SBR Decanter</div>
-          <div class="dev-controls"></div>
-        </div>
+        <div class="device decanter" data-id="DECANTER"><div class="dev-icon decanter">⇊</div><div class="dev-name">SBR Decanter</div><div class="dev-controls"></div></div>
       </div>
     </div>
   </section>
 </main>
 
-<!-- Tank drawer -->
-<aside id="drawer" class="drawer hidden">
-  <div class="drawer-head">
-    <div>
-      <div class="drawer-title" id="drawerTitle">Tank</div>
-      <div class="drawer-sub">Internal equipment</div>
-    </div>
-    <button class="link" id="closeDrawer">✕ Close</button>
+<!-- ========================= VISUALIZATION (SCADA) ========================= -->
+<main class="stage view-viz hidden" id="view-viz">
+  <div class="viz-toolbar">
+    <span class="viz-title">SBR Aeration · Live SCADA</span>
+    <span class="legend"><i class="lg air"></i> Air <i class="lg water"></i> Inlet <i class="lg sludge"></i> Sludge</span>
   </div>
-  <div class="drawer-body" id="drawerBody"></div>
-</aside>
+
+  <div class="viz-canvas">
+    <!-- Pipes drawn as SVG behind everything -->
+    <svg class="pipes" viewBox="0 0 1200 720" preserveAspectRatio="none">
+      <!-- inlet line top -->
+      <path d="M40,140 H260 V120 H520" class="pipe water"/>
+      <!-- inlet line bottom -->
+      <path d="M40,580 H260 V600 H520" class="pipe water"/>
+      <!-- air header from blowers to air valves to basins -->
+      <path d="M210,260 V340 H320 V200 H520" class="pipe air"/>
+      <path d="M210,420 V340" class="pipe air"/>
+      <path d="M320,540 H520" class="pipe air"/>
+      <!-- decant lines from basins out -->
+      <path d="M860,160 H1020 V360 H1100" class="pipe water"/>
+      <path d="M860,560 H1020" class="pipe water"/>
+      <!-- sludge -->
+      <path d="M860,220 H960 V640 H1100" class="pipe sludge"/>
+    </svg>
+
+    <!-- SBR-1 Inlet Valve -->
+    <div class="viz-node valve-node" style="left:30px;top:115px" data-id="SBR1_INLET">
+      <div class="viz-valve"><span>⛒</span></div>
+      <div class="viz-label">SBR-1 Inlet</div>
+      <div class="viz-status"></div>
+    </div>
+    <!-- SBR-2 Inlet Valve -->
+    <div class="viz-node valve-node" style="left:30px;top:555px" data-id="SBR2_INLET">
+      <div class="viz-valve"><span>⛒</span></div>
+      <div class="viz-label">SBR-2 Inlet</div>
+      <div class="viz-status"></div>
+    </div>
+
+    <!-- Blowers stack -->
+    <div class="viz-blowers" style="left:140px;top:240px">
+      <div class="viz-node blower-node" data-id="BLOWER1"><div class="viz-blower">✱</div><div class="viz-label">Blower 1</div><div class="viz-status"></div></div>
+      <div class="viz-node blower-node" data-id="BLOWER2"><div class="viz-blower">✱</div><div class="viz-label">Blower 2</div><div class="viz-status"></div></div>
+      <div class="viz-node blower-node" data-id="BLOWER3"><div class="viz-blower">✱</div><div class="viz-label">Blower 3</div><div class="viz-status"></div></div>
+      <div class="viz-node blower-node" data-id="BLOWER4"><div class="viz-blower">✱</div><div class="viz-label">Blower 4</div><div class="viz-status"></div></div>
+    </div>
+
+    <!-- Air-line valves -->
+    <div class="viz-node valve-node" style="left:300px;top:175px" data-id="AIR1">
+      <div class="viz-valve air"><span>⛒</span></div>
+      <div class="viz-label">Air-1</div>
+      <div class="viz-status"></div>
+    </div>
+    <div class="viz-node valve-node" style="left:300px;top:515px" data-id="AIR2">
+      <div class="viz-valve air"><span>⛒</span></div>
+      <div class="viz-label">Air-2</div>
+      <div class="viz-status"></div>
+    </div>
+
+    <!-- CASS Basin 1 -->
+    <div class="viz-tank" data-tank="BASIN1" style="left:520px;top:60px;width:340px;height:240px">
+      <div class="viz-tank-water"></div>
+      <div class="viz-tank-zones">
+        <div class="z">Z1</div><div class="z">Z2</div><div class="z highlight">Z3</div>
+      </div>
+      <div class="viz-tank-title">Zone-3 · CASS Basin 1</div>
+      <div class="viz-tank-meta"><span class="inside-pulse"></span> <b id="vizBasin1Count">4</b> pumps · <span id="vizBasin1Active">— active</span></div>
+      <button class="viz-expand" data-tank="BASIN1">▸ Expand</button>
+      <div class="viz-tank-internals hidden" data-viz-internals="BASIN1"></div>
+    </div>
+
+    <!-- CASS Basin 2 -->
+    <div class="viz-tank" data-tank="BASIN2" style="left:520px;top:460px;width:340px;height:240px">
+      <div class="viz-tank-water"></div>
+      <div class="viz-tank-zones">
+        <div class="z">Z1</div><div class="z">Z2</div><div class="z highlight">Z3</div>
+      </div>
+      <div class="viz-tank-title">Zone-3 · CASS Basin 2</div>
+      <div class="viz-tank-meta"><span class="inside-pulse"></span> <b id="vizBasin2Count">4</b> pumps · <span id="vizBasin2Active">— active</span></div>
+      <button class="viz-expand" data-tank="BASIN2">▸ Expand</button>
+      <div class="viz-tank-internals hidden" data-viz-internals="BASIN2"></div>
+    </div>
+
+    <!-- Decanter -->
+    <div class="viz-node" style="left:1080px;top:340px" data-id="DECANTER">
+      <div class="viz-decanter">⇊</div>
+      <div class="viz-label">Decanter</div>
+      <div class="viz-status"></div>
+    </div>
+
+    <!-- Group outline -->
+    <div class="viz-group-outline"></div>
+    <div class="viz-group-label">Group · SBR Aeration</div>
+  </div>
+</main>
 
 <!-- Take-control modal -->
 <div id="modal" class="modal hidden">
@@ -161,7 +199,6 @@
   </div>
 </div>
 
-<!-- Release confirm -->
 <div id="releaseModal" class="modal hidden">
   <div class="modal-card small">
     <h2>Return all equipment to Local (PLC)?</h2>
