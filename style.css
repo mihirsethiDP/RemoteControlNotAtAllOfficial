@@ -140,7 +140,7 @@ select{background:#0f1626;color:var(--text);border:1px solid var(--line);padding
 .toast.ok{border-color:var(--ok);color:#aef0c4}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(124,92,255,.6)}70%{box-shadow:0 0 0 8px rgba(124,92,255,0)}100%{box-shadow:0 0 0 0 rgba(124,92,255,0)}}
 
-/* ===================== VISUALIZATION (SCADA) ===================== */
+/* ===================== VISUALIZATION (SCADA REPLICA) ===================== */
 .view-viz{max-width:1400px;margin:0 auto}
 .viz-toolbar{display:flex;justify-content:space-between;align-items:center;padding:0 4px 12px;font-size:13px;color:var(--muted)}
 .viz-title{color:var(--text);font-weight:600}
@@ -148,94 +148,90 @@ select{background:#0f1626;color:var(--text);border:1px solid var(--line);padding
 .lg{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:4px;vertical-align:middle}
 .lg.air{background:var(--air)}.lg.water{background:var(--water)}.lg.sludge{background:var(--sludge)}
 
-.viz-canvas{
-  position:relative;height:760px;background:
-    linear-gradient(180deg,#0d1322,#0f1420);
-  border:1px solid var(--line);border-radius:14px;overflow:hidden;
-  background-image:radial-gradient(circle at 1px 1px,rgba(255,255,255,.04) 1px,transparent 0);
-  background-size:18px 18px
+.scada-wrap{
+  position:relative;background:#dfe6ef;border:1px solid var(--line);border-radius:14px;overflow:hidden;
+  background-image:linear-gradient(rgba(0,0,0,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,.05) 1px,transparent 1px);
+  background-size:20px 20px
 }
-.pipes{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.pipe{fill:none;stroke-width:6;stroke-linejoin:round;stroke-linecap:round;opacity:.85}
-.pipe.water{stroke:var(--water)}
-.pipe.air{stroke:var(--air);stroke-dasharray:2 6;animation:flow 1.2s linear infinite}
-.pipe.sludge{stroke:var(--sludge)}
-@keyframes flow{to{stroke-dashoffset:-32}}
+.scada{display:block;width:100%;height:auto;background:#dfe6ef}
 
-/* Group outline on viz */
-.viz-group-outline{position:absolute;left:14px;top:30px;right:14px;bottom:14px;border:2px dashed #3a4a7a;border-radius:14px;pointer-events:none;transition:border-color .2s}
-.viz-group-label{position:absolute;left:30px;top:18px;background:var(--bg);padding:2px 12px;border:1px solid #3a4a7a;border-radius:999px;font-size:12px;color:#9fb3e0;font-weight:600;z-index:1}
-.view-viz .group-remote .viz-group-outline,.view-viz.remote .viz-group-outline{border-color:var(--remote)}
-.view-viz.remote .viz-group-label{border-color:var(--remote);color:#cdbcff}
+/* SCADA elements use light SCADA palette inside SVG; HTML overlays sit on top */
+.scada text{font-family:system-ui,Segoe UI,Inter,sans-serif}
+.scada .scada-group-outline{stroke:#3a4a7a;stroke-width:2;stroke-dasharray:8 6;transition:stroke .2s}
+.scada .scada-group-label{font-size:12px;fill:#1a2236;font-weight:700}
+.view-viz.remote .scada .scada-group-outline{stroke:#7c5cff}
+.view-viz.remote .scada .scada-group-label{fill:#5b48b8}
 
-/* Generic node */
-.viz-node{position:absolute;display:flex;flex-direction:column;align-items:center;gap:4px;z-index:2}
-.viz-label{font-size:11px;color:#cfd8ee;white-space:nowrap}
-.viz-status{position:absolute;top:-6px;right:-6px;width:14px;height:14px;border-radius:50%;background:#3a3a3a;border:2px solid #0f1420}
-.viz-node.on .viz-status{background:var(--ok)}
+/* Animated dashed flow on pipes */
+.flow-air, .flow-water{animation:flow 1.2s linear infinite}
+.flow-water{animation-duration:2s}
+@keyframes flow{to{stroke-dashoffset:-40}}
 
-.viz-valve{
-  width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff 0%,#bcc6dc 50%,#525c75 100%);
-  border:2px solid #2c3550;display:grid;place-items:center;color:#1a2236;font-weight:700;cursor:pointer;
-  transition:box-shadow .15s, border-color .15s
-}
-.viz-valve.air{background:radial-gradient(circle at 35% 30%,#ffe2a8 0%,#f59e0b 60%,#7a4f00 100%);color:#fff}
-.viz-node.on .viz-valve{box-shadow:0 0 0 3px rgba(34,197,94,.35);border-color:var(--ok)}
-.viz-node.blocked .viz-valve{box-shadow:0 0 0 3px rgba(239,68,68,.4);border-color:var(--bad)}
-
-.viz-blowers{position:absolute;display:flex;flex-direction:column;gap:14px;z-index:2}
-.viz-blower{
-  width:54px;height:54px;border-radius:14px;background:linear-gradient(160deg,#2a3350,#1a2236);
-  border:2px solid #3e4b73;display:grid;place-items:center;font-size:22px;color:#9fb3e0;cursor:pointer;
-  transition:transform .2s,box-shadow .2s,border-color .2s
-}
-.viz-node.on .viz-blower{color:var(--ok);border-color:var(--ok);box-shadow:0 0 18px rgba(34,197,94,.35);animation:spin 1.6s linear infinite}
+/* Pump SVG content injected by JS — ON state spins */
+.pump-svg.on .impeller{animation:spin .9s linear infinite;transform-origin:center;transform-box:fill-box}
 @keyframes spin{to{transform:rotate(360deg)}}
+.pump-svg{cursor:pointer}
+.pump-svg .ring{stroke:#101010;stroke-width:1.5;fill:#1a1a1a}
+.pump-svg .body{fill:#c92626}
+.pump-svg.on .body{fill:#22a043}
+.pump-svg .blade{fill:#fff}
+.pump-svg .hub{fill:#101010}
 
-.viz-decanter{
-  width:56px;height:56px;border-radius:10px;background:linear-gradient(180deg,#2a3350,#161c2c);
-  border:2px solid #3e4b73;display:grid;place-items:center;font-size:24px;color:#9fb3e0;cursor:pointer
-}
-.viz-node.on .viz-decanter{border-color:var(--ok);color:var(--ok)}
+/* Valves */
+.valve-svg{cursor:pointer}
+.valve-svg .body{fill:#c92626;stroke:#101010;stroke-width:1.5}
+.valve-svg.on .body{fill:#22a043}
+.valve-svg .pipe{fill:#9aa6c0;stroke:#3a3a3a;stroke-width:1.2}
+.valve-svg .handle{fill:#3a3a3a}
+.valve-svg.air .body{fill:#ec4444}
+.valve-svg.air.on .body{fill:#22a043}
 
-/* Viz tank */
-.viz-tank{
-  position:absolute;background:linear-gradient(180deg,#1a2236,#0f1626);border:2px solid #3e4b73;
-  border-radius:14px;overflow:hidden;z-index:2;transition:height .2s,border-color .2s
+/* Blowers (left column boxes with red/green ON/OFF tile + label) */
+.blower-svg{cursor:pointer}
+.blower-svg .box{fill:#cfd8ee;stroke:#3a4a7a;stroke-width:1.5}
+.blower-svg .indicator{fill:#c92626}
+.blower-svg.on .indicator{fill:#22a043}
+.blower-svg .indicator-dot{fill:#fff}
+.blower-svg text{font-size:9px;fill:#1a2236;font-weight:600}
+
+/* Decanter */
+.decanter-svg{cursor:pointer}
+.decanter-svg .body{fill:#cfd8ee;stroke:#3a4a7a;stroke-width:1.5}
+.decanter-svg.on .body{fill:#a4e0bf}
+
+/* Overlays (HTML mode pills + toggle switches anchored over SVG nodes) */
+.overlay-layer{position:absolute;inset:0;pointer-events:none}
+.overlay-layer .ctl{
+  position:absolute;pointer-events:auto;background:var(--panel);border:1px solid var(--line);
+  padding:4px 6px;border-radius:8px;display:flex;align-items:center;gap:6px;font-size:10px;
+  box-shadow:0 4px 14px rgba(0,0,0,.3);transform:translate(-50%,0);white-space:nowrap;z-index:5
 }
-.view-viz.remote .viz-tank{border-color:var(--remote)}
-.viz-tank-water{position:absolute;left:0;right:0;bottom:0;height:55%;background:linear-gradient(180deg,rgba(78,161,255,.25),rgba(78,161,255,.55));animation:wave 3s ease-in-out infinite alternate;border-top:1px solid rgba(120,170,255,.5)}
-.viz-tank-zones{position:absolute;left:8px;top:8px;display:flex;gap:6px;z-index:2}
-.viz-tank-zones .z{font-size:10px;padding:2px 7px;background:rgba(15,20,32,.7);border:1px solid var(--line);border-radius:6px;color:#9fb3e0}
-.viz-tank-zones .z.highlight{border-color:var(--accent);color:#cfe3ff}
-.viz-tank-title{position:absolute;left:10px;top:34px;font-weight:600;font-size:14px;z-index:2}
-.viz-tank-meta{position:absolute;left:10px;top:54px;font-size:11px;color:#cfd8ee;z-index:2;display:flex;align-items:center;gap:6px}
-.inside-pulse{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 0 rgba(78,161,255,.6);animation:dotpulse 1.6s infinite}
+.overlay-layer .ctl .switch{width:34px;height:18px}
+.overlay-layer .ctl .switch .slider:before{width:12px;height:12px;left:3px;top:3px}
+.overlay-layer .ctl .switch input:checked + .slider:before{transform:translateX(16px)}
+.overlay-layer .ctl .mode-pill.sm{font-size:9px;padding:1px 5px}
+.overlay-layer .ctl.blocked{border-color:var(--bad);background:#3a1414;color:#ffb4b4;max-width:220px;white-space:normal}
+.view-viz:not(.remote) .overlay-layer .ctl{display:none}
+
+/* Tank expand affordance + drawer */
+.tank-expand-btn{
+  position:absolute;background:rgba(255,255,255,.92);border:1px solid var(--accent);color:#1a2236;
+  padding:5px 12px;border-radius:999px;font-size:11px;font-weight:600;cursor:pointer;z-index:6;
+  box-shadow:0 4px 14px rgba(0,0,0,.2);display:flex;align-items:center;gap:6px
+}
+.tank-expand-btn:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);animation:dotpulse 1.6s infinite}
+.tank-expand-btn:hover{background:#fff}
 @keyframes dotpulse{0%{box-shadow:0 0 0 0 rgba(78,161,255,.6)}70%{box-shadow:0 0 0 8px rgba(78,161,255,0)}100%{box-shadow:0 0 0 0 rgba(78,161,255,0)}}
 
-.viz-expand{
-  position:absolute;right:10px;top:10px;background:rgba(15,20,32,.8);border:1px solid var(--accent);
-  color:#cfe3ff;padding:4px 10px;border-radius:999px;font-size:11px;cursor:pointer;z-index:3
-}
-.viz-expand:hover{background:rgba(78,161,255,.15)}
+/* Position the two expand buttons (computed against SVG aspect) */
+#tankExpand1{left:50%;top:32%;transform:translate(-50%,-50%)}
+#tankExpand2{left:50%;top:73%;transform:translate(-50%,-50%)}
 
-.viz-tank.expanded{height:auto !important;min-height:240px}
-.viz-tank-internals{
-  position:relative;margin-top:84px;padding:10px;background:rgba(15,20,32,.7);
-  border-top:1px solid rgba(120,170,255,.3);
-  display:grid;grid-template-columns:1fr 1fr;gap:8px;z-index:2
+.tank-drawer{
+  position:absolute;left:50%;transform:translateX(-50%);width:min(720px,90%);
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;z-index:7;
+  box-shadow:0 12px 40px rgba(0,0,0,.5);display:grid;grid-template-columns:1fr 1fr;gap:8px
 }
-.viz-tank.expanded .viz-tank-water{height:30%}
-
-/* Inline control popover (used on viz nodes when in remote) */
-.viz-node .ctl{
-  position:absolute;left:50%;top:100%;transform:translate(-50%,8px);
-  background:var(--panel);border:1px solid var(--line);padding:6px 8px;border-radius:8px;
-  display:flex;align-items:center;gap:8px;font-size:11px;z-index:5;white-space:nowrap;
-  box-shadow:0 6px 20px rgba(0,0,0,.4)
-}
-.viz-node .ctl .mode-pill.sm{font-size:9px}
-.viz-node .ctl .interlock{color:#ffb4b4;max-width:200px;white-space:normal}
-
-/* Hide controls in local mode (no remote engaged) */
-.view-viz:not(.remote) .viz-node .ctl{display:none}
+.tank-drawer.basin1{top:36%}
+.tank-drawer.basin2{top:77%}
+.tank-drawer-head{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600;margin-bottom:4px;padding:4px 4px 8px;border-bottom:1px solid var(--line)}

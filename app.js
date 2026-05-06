@@ -90,36 +90,152 @@ function renderEngTankInternals(tankId) {
   });
 }
 
-// ---------- Visualization view rendering ----------
-function renderVizNode(nodeEl) {
-  const id = nodeEl.dataset.id;
-  if (!id) return;
-  const d = DEVICES[id];
-  nodeEl.classList.toggle("on", d.on);
-  // Inject inline control popover
-  let ctl = nodeEl.querySelector(".ctl");
-  if (!ctl) {
-    ctl = document.createElement("div");
-    ctl.className = "ctl";
-    nodeEl.appendChild(ctl);
+// ---------- SCADA SVG device drawing ----------
+const SVG_NS = "http://www.w3.org/2000/svg";
+function svgEl(tag, attrs={}) {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+
+function drawPumpSvg(g, on) {
+  g.innerHTML = "";
+  g.classList.toggle("on", on);
+  // motor housing
+  g.appendChild(svgEl("circle", { r: 22, class: "ring" }));
+  // colored body
+  g.appendChild(svgEl("circle", { r: 18, class: "body" }));
+  // 3-blade impeller
+  const imp = svgEl("g", { class: "impeller" });
+  imp.appendChild(svgEl("path", { d: "M0,-14 L4,-3 L-4,-3 Z", class: "blade" }));
+  imp.appendChild(svgEl("path", { d: "M12,7 L1,3 L4,14 Z", class: "blade" }));
+  imp.appendChild(svgEl("path", { d: "M-12,7 L-1,3 L-4,14 Z", class: "blade" }));
+  g.appendChild(imp);
+  g.appendChild(svgEl("circle", { r: 3, class: "hub" }));
+}
+
+function drawValveSvg(g, on, isAir) {
+  g.innerHTML = "";
+  g.classList.toggle("on", on);
+  if (isAir) g.classList.add("air");
+  // pipe ends
+  g.appendChild(svgEl("rect", { x: -28, y: -6, width: 56, height: 12, class: "pipe" }));
+  // body (square)
+  g.appendChild(svgEl("rect", { x: -13, y: -13, width: 26, height: 26, class: "body" }));
+  // handle
+  g.appendChild(svgEl("rect", { x: -2, y: -28, width: 4, height: 14, class: "handle" }));
+  g.appendChild(svgEl("circle", { cx: 0, cy: -28, r: 3.5, class: "handle" }));
+}
+
+function drawBlowerSvg(g, on, idx) {
+  g.innerHTML = "";
+  g.classList.toggle("on", on);
+  // ON/OFF indicator tile (red/green like screenshot)
+  g.appendChild(svgEl("rect", { x: 0, y: 0, width: 22, height: 22, class: "indicator" }));
+  const dot = svgEl("circle", { cx: 11, cy: 11, r: 3.5, class: "indicator-dot" });
+  g.appendChild(dot);
+  const onoff = svgEl("text", { x: 11, y: 36, "text-anchor": "middle" });
+  onoff.textContent = "ON/OFF";
+  g.appendChild(onoff);
+  // Blower body box
+  g.appendChild(svgEl("rect", { x: 32, y: 0, width: 130, height: 32, class: "box" }));
+  const lbl = svgEl("text", { x: 97, y: 20, "text-anchor": "middle" });
+  lbl.textContent = `SBR Blower - ${idx}`;
+  g.appendChild(lbl);
+}
+
+function drawDecanterSvg(g, on) {
+  g.innerHTML = "";
+  g.classList.toggle("on", on);
+  g.appendChild(svgEl("rect", { x: -22, y: -14, width: 44, height: 28, rx: 4, class: "body" }));
+  const t = svgEl("text", { x: 0, y: 4, "text-anchor": "middle", "font-size": 16 });
+  t.textContent = "⇊";
+  t.setAttribute("fill", "#1a2236");
+  g.appendChild(t);
+  const lbl = svgEl("text", { x: 0, y: 28, "text-anchor": "middle", "font-size": 10, fill: "#1a2236" });
+  lbl.textContent = "Decanter";
+  g.appendChild(lbl);
+}
+
+function renderScada() {
+  // Pumps
+  document.querySelectorAll(".pump-svg").forEach(g => {
+    const id = g.dataset.id;
+    drawPumpSvg(g, DEVICES[id]?.on);
+  });
+  // Valves
+  document.querySelectorAll(".valve-svg").forEach(g => {
+    const id = g.dataset.id;
+    drawValveSvg(g, DEVICES[id]?.on, g.classList.contains("air"));
+  });
+  // Blowers
+  document.querySelectorAll(".blower-svg").forEach(g => {
+    const id = g.dataset.id;
+    const idx = id.replace("BLOWER", "");
+    drawBlowerSvg(g, DEVICES[id]?.on, idx);
+  });
+  // Decanter
+  document.querySelectorAll(".decanter-svg").forEach(g => {
+    drawDecanterSvg(g, DEVICES[g.dataset.id]?.on);
+  });
+  positionOverlays();
+}
+
+// ---------- HTML overlay controls anchored over SVG devices ----------
+const ANCHORS = {
+  // id : { offsetY : px below the bbox center for control tooltip }
+  SBR1_INLET:{}, SBR2_INLET:{}, AIR1:{}, AIR2:{},
+  BLOWER1:{}, BLOWER2:{}, BLOWER3:{}, BLOWER4:{},
+  DECANTER:{}, RECIRC_A1:{}, RECIRC_A2:{}, SLUDGE_A1:{}, SLUDGE_A2:{},
+  RECIRC_B1:{}, RECIRC_B2:{}, SLUDGE_B1:{}, SLUDGE_B2:{}
+};
+
+function positionOverlays() {
+  const layer = document.getElementById("overlayLayer");
+  if (!layer) return;
+  const wrap = document.querySelector(".scada-wrap");
+  const svg = document.querySelector(".scada");
+  if (!wrap || !svg) return;
+  const wrapRect = wrap.getBoundingClientRect();
+
+  // Build/refresh overlay for each device
+  for (const id of Object.keys(ANCHORS)) {
+    const node = svg.querySelector(`[data-id="${id}"]`);
+    if (!node) continue;
+    const bb = node.getBoundingClientRect();
+    const cx = bb.left - wrapRect.left + bb.width / 2;
+    const cy = bb.bottom - wrapRect.top + 4;
+
+    let ctl = layer.querySelector(`.ctl[data-id="${id}"]`);
+    if (!ctl) {
+      ctl = document.createElement("div");
+      ctl.className = "ctl";
+      ctl.dataset.id = id;
+      layer.appendChild(ctl);
+    }
+    ctl.style.left = cx + "px";
+    ctl.style.top  = cy + "px";
+
+    // refill
+    const d = DEVICES[id];
+    ctl.innerHTML = "";
+    const pill = document.createElement("span");
+    pill.className = "mode-pill sm " + (d.mode === "remote" ? "remote" : "local");
+    pill.textContent = d.mode === "remote" ? "REMOTE" : "LOCAL";
+    ctl.appendChild(pill);
+    const lab = document.createElement("label"); lab.className = "switch";
+    const inp = document.createElement("input");
+    inp.type = "checkbox"; inp.checked = d.on; inp.disabled = d.mode !== "remote";
+    inp.addEventListener("change", e => attemptToggle(id, e.target.checked, ctl));
+    const sl = document.createElement("span"); sl.className = "slider";
+    lab.append(inp, sl); ctl.appendChild(lab);
   }
-  ctl.innerHTML = "";
-  const pill = document.createElement("span");
-  pill.className = "mode-pill sm " + (d.mode === "remote" ? "remote" : "local");
-  pill.textContent = d.mode === "remote" ? "REMOTE" : "LOCAL";
-  ctl.appendChild(pill);
-  const lab = document.createElement("label"); lab.className = "switch";
-  const inp = document.createElement("input");
-  inp.type = "checkbox"; inp.checked = d.on; inp.disabled = d.mode !== "remote";
-  inp.addEventListener("change", e => attemptToggle(id, e.target.checked, nodeEl));
-  const sl = document.createElement("span"); sl.className = "slider";
-  lab.append(inp, sl); ctl.appendChild(lab);
 }
 
 function renderVizTankInternals(tankId) {
   const host = document.querySelector(`[data-viz-internals="${tankId}"]`);
   if (!host) return;
-  host.innerHTML = "";
+  host.innerHTML = `<div class="tank-drawer-head"><span>Pumps inside ${tankId === "BASIN1" ? "CASS Basin 1" : "CASS Basin 2"}</span><button class="link" data-collapse="${tankId}">✕ Close</button></div>`;
   Object.entries(DEVICES).filter(([,d]) => d.loc === tankId).forEach(([id, d]) => {
     const el = document.createElement("div");
     el.className = "mini-device" + (d.on ? " on" : "");
@@ -139,23 +255,22 @@ function renderVizTankInternals(tankId) {
     const sl = document.createElement("span"); sl.className = "slider";
     lab.append(inp, sl); ctrls.appendChild(lab);
   });
+  host.querySelector("[data-collapse]")?.addEventListener("click", () => toggleTankExpand(tankId));
 }
 
 function renderAll() {
   // Engineering devices
   $$("#view-engineering .device").forEach(renderEngDevice);
-  // Engineering tanks: re-render internals if expanded
   ["BASIN1","BASIN2"].forEach(t => {
     if (document.querySelector(`.tank-card[data-tank="${t}"]`)?.classList.contains("expanded")) {
       renderEngTankInternals(t);
     }
   });
-  // Viz nodes
-  $$("#view-viz .viz-node").forEach(renderVizNode);
+  // SCADA viz
+  renderScada();
   ["BASIN1","BASIN2"].forEach(t => {
-    if (document.querySelector(`.viz-tank[data-tank="${t}"]`)?.classList.contains("expanded")) {
-      renderVizTankInternals(t);
-    }
+    const drawer = document.querySelector(`#vizDrawer${t === "BASIN1" ? 1 : 2}`);
+    if (drawer && !drawer.classList.contains("hidden")) renderVizTankInternals(t);
   });
   // Counts
   const total = Object.keys(DEVICES).length;
@@ -163,12 +278,8 @@ function renderAll() {
   ["BASIN1","BASIN2"].forEach(t => {
     const list = Object.values(DEVICES).filter(d => d.loc === t);
     const active = list.filter(d => d.on).length;
-    const id = t === "BASIN1" ? "basin1Summary" : "basin2Summary";
-    if ($("#"+id)) $("#"+id).textContent = `${list.length} pumps · ${active} active`;
-    const vCount = $(`#vizBasin${t === "BASIN1" ? 1 : 2}Count`);
-    const vAct = $(`#vizBasin${t === "BASIN1" ? 1 : 2}Active`);
-    if (vCount) vCount.textContent = list.length;
-    if (vAct) vAct.textContent = `${active} active`;
+    const sid = t === "BASIN1" ? "basin1Summary" : "basin2Summary";
+    if ($("#"+sid)) $("#"+sid).textContent = `${list.length} pumps · ${active} active`;
   });
   // Master visuals
   document.querySelector(".group").classList.toggle("remote", remoteActive);
@@ -191,21 +302,22 @@ function attemptToggle(id, nextOn, hostEl) {
 }
 
 function showInterlock(hostEl, msg) {
-  hostEl.querySelectorAll(".interlock-msg, .interlock").forEach(n => n.remove());
-  const m = document.createElement("div");
-  // Use small inline form on viz, larger on engineering
-  if (hostEl.closest(".viz-canvas")) {
-    m.className = "ctl interlock";
-    m.style.top = "calc(100% + 36px)";
-    m.textContent = msg;
-    hostEl.appendChild(m);
-  } else {
-    m.className = "interlock-msg";
-    m.textContent = msg;
-    hostEl.appendChild(m);
+  // Engineering device: append red bar; SCADA overlay ctl: flash text
+  if (hostEl.classList.contains("ctl")) {
+    hostEl.classList.add("blocked");
+    const orig = hostEl.innerHTML;
+    hostEl.innerHTML = `<span>${msg}</span>`;
+    setTimeout(() => { hostEl.classList.remove("blocked"); hostEl.innerHTML = orig; positionOverlays(); }, 3500);
+    return;
   }
+  hostEl.querySelectorAll(".interlock-msg").forEach(n => n.remove());
+  const m = document.createElement("div");
+  m.className = "interlock-msg";
+  m.textContent = msg;
+  hostEl.appendChild(m);
   hostEl.classList.add("blocked");
   setTimeout(() => { m.remove(); hostEl.classList.remove("blocked"); }, 3500);
+  toast(msg, "bad");
 }
 
 // ---------- Tank progressive disclosure ----------
@@ -220,21 +332,17 @@ function toggleTankExpand(tankId) {
     if (lbl) lbl.textContent = wasExpanded ? "Hide internal equipment" : "Show internal equipment";
     if (wasExpanded) renderEngTankInternals(tankId);
   }
-  // Viz view
-  const vt = document.querySelector(`.viz-tank[data-tank="${tankId}"]`);
-  if (vt) {
-    const wasExpanded = vt.classList.toggle("expanded");
-    const internals = vt.querySelector(".viz-tank-internals");
-    internals.classList.toggle("hidden", !wasExpanded);
-    const btn = vt.querySelector(".viz-expand");
-    if (btn) btn.textContent = wasExpanded ? "▾ Collapse" : "▸ Expand";
-    if (wasExpanded) {
-      // grow tank to fit
-      vt.style.height = "auto";
-      renderVizTankInternals(tankId);
-    } else {
-      vt.style.height = "240px";
-    }
+  // Viz drawer (SCADA)
+  const drawer = document.querySelector(`#vizDrawer${tankId === "BASIN1" ? 1 : 2}`);
+  const btn = document.querySelector(`#tankExpand${tankId === "BASIN1" ? 1 : 2}`);
+  if (drawer) {
+    const opening = drawer.classList.contains("hidden");
+    drawer.classList.toggle("hidden", !opening);
+    drawer.classList.add(tankId === "BASIN1" ? "basin1" : "basin2");
+    if (btn) btn.textContent = opening
+      ? `▾ Hide pumps in Basin ${tankId === "BASIN1" ? 1 : 2}`
+      : `▸ Pumps inside Basin ${tankId === "BASIN1" ? 1 : 2}`;
+    if (opening) renderVizTankInternals(tankId);
   }
 }
 
@@ -307,6 +415,10 @@ function setView(name) {
   $$(".tab").forEach(t => t.classList.toggle("active", t.dataset.view === name));
   $("#view-engineering").classList.toggle("hidden", name !== "engineering");
   $("#view-viz").classList.toggle("hidden", name !== "viz");
+  if (name === "viz") {
+    // overlays need the SVG to be laid out
+    requestAnimationFrame(() => positionOverlays());
+  }
 }
 
 // ---------- Wire up ----------
@@ -315,11 +427,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Engineering tank disclosure
   $$(".disclosure-btn").forEach(b => b.addEventListener("click", () => toggleTankExpand(b.dataset.tank)));
-  // Viz tank disclosure
-  $$(".viz-expand").forEach(b => b.addEventListener("click", e => {
-    e.stopPropagation();
-    toggleTankExpand(b.dataset.tank);
-  }));
+  // SCADA tank-expand buttons
+  $$(".tank-expand-btn").forEach(b => b.addEventListener("click", () => toggleTankExpand(b.dataset.tank)));
+
+  // Reposition overlays on resize/scroll
+  window.addEventListener("resize", positionOverlays);
+  window.addEventListener("scroll", positionOverlays, true);
 
   $("#masterRemote").addEventListener("change", e => {
     if (e.target.checked && !remoteActive) openTakeModal();
