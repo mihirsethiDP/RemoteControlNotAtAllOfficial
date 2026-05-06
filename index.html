@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Remote Control — SBR Aeration (Prototype)</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">◈</span>
+    <div>
+      <div class="title">Adani Mumbai · SBR Aeration</div>
+      <div class="sub">Remote Control Prototype</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div id="timerChip" class="timer-chip hidden">
+      <span class="dot"></span><span id="timerLabel">--:--</span>
+      <button id="cancelRemote" class="link">Release</button>
+    </div>
+    <div class="master">
+      <span class="master-label">Plant Control</span>
+      <label class="switch big">
+        <input type="checkbox" id="masterRemote" />
+        <span class="slider"></span>
+      </label>
+      <span id="masterMode" class="mode-pill local">LOCAL (PLC)</span>
+    </div>
+  </div>
+</header>
+
+<main class="stage">
+  <!-- Group: SBR Aeration -->
+  <section class="group" data-group="sbr">
+    <div class="group-label">Group · SBR Aeration <span class="count" id="sbrCount">0 equipment</span></div>
+
+    <div class="sbr-grid">
+      <!-- Inlet valves (left column) -->
+      <div class="col valves">
+        <div class="device" data-id="SBR1_INLET" data-type="valve">
+          <div class="dev-icon valve">⛒</div>
+          <div class="dev-name">SBR-1 Inlet Valve</div>
+          <div class="dev-controls"></div>
+        </div>
+        <div class="device" data-id="SBR2_INLET" data-type="valve">
+          <div class="dev-icon valve">⛒</div>
+          <div class="dev-name">SBR-2 Inlet Valve</div>
+          <div class="dev-controls"></div>
+        </div>
+      </div>
+
+      <!-- Blowers (center column) -->
+      <div class="col blowers">
+        <div class="device" data-id="BLOWER1" data-type="blower">
+          <div class="dev-icon blower">✱</div>
+          <div class="dev-name">SBR Blower 1</div>
+          <div class="dev-controls"></div>
+        </div>
+        <div class="device" data-id="BLOWER2" data-type="blower">
+          <div class="dev-icon blower">✱</div>
+          <div class="dev-name">SBR Blower 2</div>
+          <div class="dev-controls"></div>
+        </div>
+        <div class="device" data-id="BLOWER3" data-type="blower">
+          <div class="dev-icon blower">✱</div>
+          <div class="dev-name">SBR Blower 3</div>
+          <div class="dev-controls"></div>
+        </div>
+        <div class="device" data-id="BLOWER4" data-type="blower">
+          <div class="dev-icon blower">✱</div>
+          <div class="dev-name">SBR Blower 4</div>
+          <div class="dev-controls"></div>
+        </div>
+      </div>
+
+      <!-- Air-line valves -->
+      <div class="col air-valves">
+        <div class="device" data-id="AIR1" data-type="valve">
+          <div class="dev-icon valve">⛒</div>
+          <div class="dev-name">SBR-1 Air Inlet Line</div>
+          <div class="dev-controls"></div>
+        </div>
+        <div class="device" data-id="AIR2" data-type="valve">
+          <div class="dev-icon valve">⛒</div>
+          <div class="dev-name">SBR-2 Air Inlet Line</div>
+          <div class="dev-controls"></div>
+        </div>
+      </div>
+
+      <!-- CASS Basins (clickable tanks) -->
+      <div class="col tanks">
+        <div class="tank" data-tank="BASIN1">
+          <div class="tank-shell">
+            <div class="tank-water"></div>
+            <div class="tank-title">Zone-3 · CASS Basin 1</div>
+            <div class="tank-sub">4500 KL</div>
+            <div class="inside-chip">
+              <span class="pulse"></span>
+              <span class="inside-text">⊕ <b id="basin1Count">4</b> inside · click to open</span>
+            </div>
+          </div>
+        </div>
+        <div class="tank" data-tank="BASIN2">
+          <div class="tank-shell">
+            <div class="tank-water"></div>
+            <div class="tank-title">Zone-3 · CASS Basin 2</div>
+            <div class="tank-sub">4500 KL</div>
+            <div class="inside-chip">
+              <span class="pulse"></span>
+              <span class="inside-text">⊕ <b id="basin2Count">4</b> inside · click to open</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Decanter, used by interlocks -->
+        <div class="device decanter" data-id="DECANTER" data-type="decanter">
+          <div class="dev-icon decanter">⇊</div>
+          <div class="dev-name">SBR Decanter</div>
+          <div class="dev-controls"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Tank drawer -->
+<aside id="drawer" class="drawer hidden">
+  <div class="drawer-head">
+    <div>
+      <div class="drawer-title" id="drawerTitle">Tank</div>
+      <div class="drawer-sub">Internal equipment</div>
+    </div>
+    <button class="link" id="closeDrawer">✕ Close</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
+
+<!-- Take-control modal -->
+<div id="modal" class="modal hidden">
+  <div class="modal-card">
+    <h2>Switch to Remote Control</h2>
+    <p class="muted">You are about to take remote control of the equipment listed below. While in remote, the PLC will <b>not</b> drive these devices — your toggles will.</p>
+    <div class="equip-list" id="equipList"></div>
+    <div class="row">
+      <label>Auto-return to local after</label>
+      <select id="duration">
+        <option value="300">5 minutes</option>
+        <option value="900" selected>15 minutes</option>
+        <option value="1800">30 minutes</option>
+        <option value="3600">1 hour</option>
+        <option value="14400">4 hours</option>
+        <option value="-1">Indefinite (manual release)</option>
+      </select>
+    </div>
+    <div class="actions">
+      <button class="btn ghost" id="cancelModal">Cancel</button>
+      <button class="btn primary" id="confirmRemote">Confirm — Take Remote Control</button>
+    </div>
+  </div>
+</div>
+
+<!-- Release confirm -->
+<div id="releaseModal" class="modal hidden">
+  <div class="modal-card small">
+    <h2>Return all equipment to Local (PLC)?</h2>
+    <p class="muted">All devices in this group will revert to PLC control immediately.</p>
+    <div class="actions">
+      <button class="btn ghost" id="cancelRelease">Cancel</button>
+      <button class="btn danger" id="confirmRelease">Release Control</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
