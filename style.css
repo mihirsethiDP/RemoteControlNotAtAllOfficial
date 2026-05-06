@@ -32,6 +32,54 @@ button{font:inherit;color:inherit}
 .mode-pill.local{background:#1c2538;color:#9aa6c0;border:1px solid var(--line)}
 .mode-pill.remote{background:rgba(124,92,255,.15);color:#b9a7ff;border:1px solid #4a3ea0}
 
+/* Section picker pill */
+.section-picker{display:flex;align-items:center}
+.section-btn{
+  display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);
+  color:var(--text);padding:6px 14px 6px 10px;border-radius:999px;cursor:pointer;
+  transition:border-color .15s,background .15s
+}
+.section-btn:hover{border-color:#3e4b73}
+.section-btn .dot{width:10px;height:10px;border-radius:50%;background:#3a3a3a;border:2px solid #0f1420}
+.section-btn[aria-pressed="true"]{background:rgba(78,161,255,.12);border-color:var(--accent)}
+.section-btn[aria-pressed="true"] .dot{background:var(--accent);box-shadow:0 0 0 0 rgba(78,161,255,.6);animation:dotpulse 1.6s infinite}
+.section-btn .lbl{font-size:13px;font-weight:600}
+.section-btn .sub{font-size:11px;color:var(--muted);margin-left:4px}
+.section-btn[aria-pressed="true"] .lbl{color:#cfe3ff}
+.section-btn[aria-pressed="true"] .sub{color:#9fc8ff}
+
+.master.disabled{opacity:.55;cursor:not-allowed}
+.master.disabled .switch input{pointer-events:none}
+.master .lock-tip{font-size:10px;color:var(--warn);margin-left:4px}
+
+/* Section-selected highlight: engineering view */
+.group.section-selected{
+  border-color:var(--accent);
+  box-shadow:0 0 0 4px rgba(78,161,255,.10), 0 0 28px rgba(78,161,255,.18);
+  animation:groupGlow 2.4s ease-in-out infinite alternate
+}
+.group.section-selected.remote{
+  border-color:var(--remote);
+  box-shadow:0 0 0 4px rgba(124,92,255,.12), 0 0 30px rgba(124,92,255,.22)
+}
+@keyframes groupGlow{from{box-shadow:0 0 0 4px rgba(78,161,255,.06),0 0 18px rgba(78,161,255,.12)}to{box-shadow:0 0 0 6px rgba(78,161,255,.14),0 0 36px rgba(78,161,255,.28)}}
+
+/* Section-selected highlight: plant layout view (SVG overlay) */
+.section-frame{
+  position:absolute;border:2px dashed var(--accent);border-radius:14px;pointer-events:none;
+  box-shadow:0 0 0 6px rgba(78,161,255,.08), inset 0 0 0 9999px rgba(78,161,255,.04);
+  animation:frameDash 30s linear infinite
+}
+.section-frame.remote{border-color:var(--remote);box-shadow:0 0 0 6px rgba(124,92,255,.10), inset 0 0 0 9999px rgba(124,92,255,.05)}
+.section-frame .frame-tag{
+  position:absolute;top:-13px;left:18px;background:var(--bg);padding:3px 12px;border:1px solid var(--accent);
+  color:#cfe3ff;border-radius:999px;font-size:11px;font-weight:600;letter-spacing:.4px;display:flex;align-items:center;gap:6px
+}
+.section-frame.remote .frame-tag{border-color:var(--remote);color:#cdbcff}
+.section-frame .frame-tag:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);animation:dotpulse 1.6s infinite}
+.section-frame.remote .frame-tag:before{background:var(--remote)}
+@keyframes frameDash{to{background-position:600px 0}}
+
 .timer-chip{display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid #4a3ea0;background:rgba(124,92,255,.12);border-radius:999px;font-variant-numeric:tabular-nums}
 .timer-chip .dot{width:8px;height:8px;border-radius:50%;background:var(--remote);animation:pulse 1.4s infinite}
 .link{background:none;border:0;color:var(--accent);cursor:pointer;font-size:12px}

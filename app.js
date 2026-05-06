@@ -39,6 +39,7 @@ function checkInterlock(id, nextOn) {
 let remoteActive = false;
 let remoteTimerId = null;
 let remoteEndsAt = null;
+let selectedSection = null; // 'sbr' or null
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 
@@ -652,6 +653,73 @@ function renderAll() {
   $("#masterMode").classList.toggle("local", !remoteActive);
   $("#masterMode").textContent = remoteActive ? "REMOTE" : "LOCAL (PLC)";
   $("#masterRemote").checked = remoteActive;
+  applySectionSelectionVisuals();
+}
+
+function applySectionSelectionVisuals() {
+  const isSel = selectedSection === "sbr";
+  // Engineering group highlight
+  document.querySelector(".group")?.classList.toggle("section-selected", isSel);
+  // Master toggle gating
+  const masterWrap = document.querySelector(".master");
+  const masterInput = $("#masterRemote");
+  masterWrap?.classList.toggle("disabled", !isSel && !remoteActive);
+  if (masterInput) masterInput.disabled = !isSel && !remoteActive;
+  // Section button state
+  const btn = $("#sectionBtn");
+  if (btn) {
+    btn.setAttribute("aria-pressed", isSel ? "true" : "false");
+    btn.querySelector(".lbl").textContent = isSel ? "SBR Aeration" : "Select section";
+    $("#sectionBtnSub").textContent = isSel
+      ? `${Object.keys(DEVICES).length} equipment · click to deselect`
+      : "Master toggle is disabled";
+  }
+  // Plant layout SVG frame
+  drawSectionFrame(isSel);
+}
+
+function drawSectionFrame(isSel) {
+  const wrap = document.getElementById("scadaWrap");
+  if (!wrap || !LAYOUT) return;
+  let frame = wrap.querySelector(".section-frame");
+  if (!isSel) { frame?.remove(); return; }
+  if (!frame) {
+    frame = document.createElement("div");
+    frame.className = "section-frame";
+    frame.innerHTML = `<span class="frame-tag">Section · SBR Aeration</span>`;
+    wrap.appendChild(frame);
+  }
+  frame.classList.toggle("remote", remoteActive);
+  // Position frame around the SVG bbox of section elements
+  const svg = wrap.querySelector(".layout-svg");
+  if (!svg) return;
+  // Use union of bounding rects of all rendered cell groups
+  let l=Infinity,t=Infinity,r=-Infinity,b=-Infinity;
+  svg.querySelectorAll("g[data-cell-id]").forEach(node => {
+    const bb = node.getBoundingClientRect();
+    if (bb.left < l) l = bb.left;
+    if (bb.top < t) t = bb.top;
+    if (bb.right > r) r = bb.right;
+    if (bb.bottom > b) b = bb.bottom;
+  });
+  if (!isFinite(l)) return;
+  const wr = wrap.getBoundingClientRect();
+  const pad = 16;
+  frame.style.left   = (l - wr.left - pad) + "px";
+  frame.style.top    = (t - wr.top  - pad) + "px";
+  frame.style.width  = (r - l + pad*2) + "px";
+  frame.style.height = (b - t + pad*2) + "px";
+}
+
+function toggleSectionSelection() {
+  // Cannot deselect while remote is engaged
+  if (remoteActive) {
+    toast("Release remote control before changing section selection.", "warn");
+    return;
+  }
+  selectedSection = selectedSection === "sbr" ? null : "sbr";
+  applySectionSelectionVisuals();
+  toast(selectedSection ? "Section SBR Aeration selected. Master remote enabled." : "Section deselected.", "ok");
 }
 
 // ---------- Toggle attempt ----------
@@ -787,17 +855,24 @@ function setView(name) {
 // ---------- Wire up ----------
 document.addEventListener("DOMContentLoaded", () => {
   $$(".tab").forEach(t => t.addEventListener("click", () => setView(t.dataset.view)));
+  $("#sectionBtn")?.addEventListener("click", toggleSectionSelection);
 
   // Engineering tank disclosure
   $$(".disclosure-btn").forEach(b => b.addEventListener("click", () => toggleTankExpand(b.dataset.tank)));
   // SCADA tank-expand buttons
   $$(".tank-expand-btn").forEach(b => b.addEventListener("click", () => toggleTankExpand(b.dataset.tank)));
 
-  // Reposition overlays on resize/scroll
-  window.addEventListener("resize", positionOverlays);
-  window.addEventListener("scroll", positionOverlays, true);
+  // Reposition overlays + section frame on resize/scroll
+  const reflow = () => { positionOverlays(); applySectionSelectionVisuals(); };
+  window.addEventListener("resize", reflow);
+  window.addEventListener("scroll", reflow, true);
 
   $("#masterRemote").addEventListener("change", e => {
+    if (!selectedSection && !remoteActive) {
+      e.target.checked = false;
+      toast("Select a section first to take remote control.", "warn");
+      return;
+    }
     if (e.target.checked && !remoteActive) openTakeModal();
     else if (!e.target.checked && remoteActive) {
       $("#releaseModal").classList.remove("hidden");

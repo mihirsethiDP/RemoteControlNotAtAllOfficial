@@ -20,6 +20,13 @@
     <button class="tab" data-view="viz">Plant Layout</button>
   </nav>
   <div class="topbar-right">
+    <div class="section-picker">
+      <button id="sectionBtn" class="section-btn" aria-pressed="false">
+        <span class="dot"></span>
+        <span class="lbl">Select section</span>
+        <span class="sub" id="sectionBtnSub">No section selected</span>
+      </button>
+    </div>
     <div id="timerChip" class="timer-chip hidden">
       <span class="dot"></span><span id="timerLabel">--:--</span>
       <button id="cancelRemote" class="link">Release</button>
