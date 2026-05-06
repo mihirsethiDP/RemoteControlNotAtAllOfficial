@@ -255,42 +255,50 @@ function drawSbrTank(c) {
   });
   g.appendChild(peek);
 
-  // === Permanent CORNER RIBBON: NESTED EQUIPMENT ===
-  const ribbon = svgEl("g", { class: "corner-ribbon" });
-  ribbon.appendChild(svgEl("rect", { x: w-150, y: 8, width: 142, height: 22, rx: 4, fill: "#7c5cff", opacity:.9 }));
-  const rt = svgEl("text", { x: w-79, y: 23, "text-anchor":"middle", "font-size":10, fill:"#fff", "font-weight":"700", "letter-spacing":"1.2" });
-  rt.textContent = "⊞  4 NESTED PUMPS";
-  ribbon.appendChild(rt);
-  g.appendChild(ribbon);
+  // === STACKED-CARD EDGES (sustained "this contains items" cue) ===
+  // Two thin layered edges peek out from behind the tank's top-right corner
+  const stackG = svgEl("g", { class:"stacked-edge" });
+  stackG.appendChild(svgEl("rect", { x: 12, y: -12, width: w-24, height: 8, rx: 3, fill: "#bcd0ee", stroke:"#3a4a7a", "stroke-width":1 }));
+  stackG.appendChild(svgEl("rect", { x: 6,  y: -6,  width: w-12, height: 8, rx: 3, fill: "#dfe8f6", stroke:"#3a4a7a", "stroke-width":1 }));
+  g.insertBefore(stackG, g.firstChild);
 
-  // === Permanent INSPECT BADGE (cursor + pulse, no hover) ===
-  const badge = svgEl("g", { class: "inspect-badge" });
-  const badgeY = h - 38;
-  badge.appendChild(svgEl("rect", { x: 14, y: badgeY, width: 250, height: 30, rx: 15, fill: "#0d2240", stroke:"#7cc4ff", "stroke-width":1.5 }));
-  // Animated tap cursor icon
-  const tap = svgEl("g", { class:"tap-icon" });
-  tap.setAttribute("transform", `translate(${30}, ${badgeY+15})`);
-  tap.appendChild(svgEl("circle", { cx:0, cy:0, r:9, fill:"none", stroke:"#7cc4ff", "stroke-width":1.5, opacity:.6 }));
-  tap.appendChild(svgEl("path", { d:"M-3,-2 L-3,5 L0,5 L0,8 L4,4 L4,-2 Z", fill:"#7cc4ff" }));
-  badge.appendChild(tap);
-  const blbl = svgEl("text", { x: 50, y: badgeY+19, "font-size": 12, fill: "#cfe3ff", "font-weight":"600" });
-  blbl.textContent = "Tap to view internals";
-  badge.appendChild(blbl);
-  // chevron
-  const chev = svgEl("text", { x: 250, y: badgeY+19, "font-size": 14, fill:"#7cc4ff", "font-weight":"700" });
-  chev.textContent = "›";
-  badge.appendChild(chev);
-  g.appendChild(badge);
+  // === DOUBLE-CLICK badge (top-right) — sustained, blinking ===
+  const dbl = svgEl("g", { class:"dbl-badge" });
+  dbl.appendChild(svgEl("rect", { x: w-180, y: 8, width: 172, height: 26, rx: 13, fill:"#0d2240", stroke:"#7cc4ff", "stroke-width":1.5 }));
+  // two tiny click rings to signify double tap
+  dbl.appendChild(svgEl("circle", { cx: w-165, cy: 21, r: 4, fill:"none", stroke:"#7cc4ff", "stroke-width":1.5 }));
+  dbl.appendChild(svgEl("circle", { cx: w-156, cy: 21, r: 4, fill:"none", stroke:"#7cc4ff", "stroke-width":1.5 }));
+  const dt = svgEl("text", { x: w-138, y: 25, "font-size":11, fill:"#cfe3ff", "font-weight":"700", "letter-spacing":".8" });
+  dt.textContent = "DBL-CLICK TO ENTER";
+  dbl.appendChild(dt);
+  g.appendChild(dbl);
+
+  // === Subtle bottom info chip (no action verb — info only) ===
+  const info = svgEl("g", { class: "inspect-badge" });
+  const iy = h - 30;
+  info.appendChild(svgEl("rect", { x: 14, y: iy, width: 200, height: 22, rx: 11, fill: "rgba(13,34,64,.85)", stroke:"#3a4a7a", "stroke-width":1 }));
+  const il = svgEl("text", { x: 24, y: iy+15, "font-size": 11, fill: "#9fc8ff", "font-weight":"600" });
+  il.textContent = "⊞ Contains 4 nested pumps";
+  info.appendChild(il);
+  g.appendChild(info);
 
   // label
   const t = svgEl("text", { x:w/2, y:24, "text-anchor":"middle", "font-size":18, fill:"#0d2240", "font-weight":"700" });
   t.textContent = c.attrs?.label?.text || "";
   g.appendChild(t);
 
-  // === Click handler -> drill in ===
+  // === Double-click handler -> drill in (single click reserved for select/info) ===
   const tanks = LAYOUT.elements.filter(x => x.type === "SBR_TANK").sort((a,b)=>a.position.y-b.position.y);
   const basinId = tanks[0]?.id === c.id ? "BASIN1" : "BASIN2";
-  g.addEventListener("click", e => { e.stopPropagation(); toggleTankExpand(basinId); });
+  g.addEventListener("dblclick", e => { e.stopPropagation(); toggleTankExpand(basinId); });
+  // Single click: hint
+  let clickT;
+  g.addEventListener("click", e => {
+    e.stopPropagation();
+    clearTimeout(clickT);
+    clickT = setTimeout(() => toast(`Double-click ${basinId === "BASIN1" ? "Basin 1" : "Basin 2"} to view its 4 pumps`, "warn"), 220);
+  });
+  g.addEventListener("dblclick", () => clearTimeout(clickT));
 
   return g;
 }
@@ -554,12 +562,12 @@ function renderLayoutInto(hostId, interactive) {
 
 function renderLayout() {
   renderLayoutInto("layoutHost", true);
-  renderLayoutInto("layoutHostB", false);
+  installZoomPan();
   positionTankExpands();
   positionOverlays();
-  // Apply current dim/section visuals to both copies
   applyDimMode("scadaWrap", selectedSection === "sbr");
-  applyDimMode("scadaWrapB", false);
+  // After render, frame the right viewBox (full or section)
+  applyViewBoxForSelection(false);
 }
 
 function positionTankExpands() {
@@ -792,9 +800,8 @@ function applySectionSelectionVisuals() {
   document.querySelectorAll(".section-option").forEach(o => {
     o.classList.toggle("selected", o.dataset.section === selectedSection);
   });
-  // Plant Layout: dim-mode + section frame on layout A only
   applyDimMode("scadaWrap", isSel);
-  applyDimMode("scadaWrapB", false); // layout B never has selection
+  applyViewBoxForSelection(true);
   drawSectionFrame(isSel);
 }
 
@@ -967,7 +974,8 @@ function activateRemote(durationSec) {
   Object.values(DEVICES).forEach(d => d.mode = "remote");
   if (durationSec > 0) { remoteEndsAt = Date.now() + durationSec * 1000; startTimerTick(); }
   else { remoteEndsAt = null; $("#timerLabel").textContent = "∞ indefinite"; $("#timerChip").classList.remove("hidden"); }
-  toast("Remote control ENGAGED. PLC handover complete.", "warn");
+  toast("Remote control ENGAGED · channel open", "warn");
+  openCmdPanel();
   renderAll();
 }
 function releaseRemote(reason) {
@@ -975,8 +983,10 @@ function releaseRemote(reason) {
   Object.values(DEVICES).forEach(d => d.mode = "local");
   if (remoteTimerId) { clearInterval(remoteTimerId); remoteTimerId = null; }
   remoteEndsAt = null;
+  stagedCommands = {};
   $("#timerChip").classList.add("hidden");
-  toast(reason || "Returned to LOCAL (PLC) control.", "ok");
+  closeCmdPanel();
+  toast(reason || "Returned to LOCAL (PLC) control", "ok");
   renderAll();
 }
 function startTimerTick() {
@@ -994,41 +1004,304 @@ function startTimerTick() {
   remoteTimerId = setInterval(tick, 500);
 }
 
-// ---------- Futuristic 3-second remote loader ----------
+// ---------- Technical 3-second remote loader ----------
 function runRemoteLoader(onDone) {
   const overlay = document.getElementById("remoteLoader");
-  const stage = document.getElementById("rlStage");
-  const fill  = document.getElementById("rlBarFill");
-  const dInt  = document.getElementById("rlDotInterlock");
-  const dCtl  = document.getElementById("rlDotControl");
+  const card    = overlay?.querySelector(".rl-card");
+  const fill    = document.getElementById("rlBarFill");
+  const log     = document.getElementById("rlLog");
+  const foot    = document.getElementById("rlFootStatus");
   if (!overlay) { onDone?.(); return; }
+
   overlay.classList.remove("hidden");
+  card.classList.remove("done");
   fill.style.transition = "none"; fill.style.right = "100%";
-  dInt.className = "rl-dot wait"; dCtl.className = "rl-dot wait";
-  // kick the bar
-  requestAnimationFrame(() => {
-    fill.style.transition = "right 3s linear";
-    fill.style.right = "0%";
-  });
-  const stages = [
-    { t: 0,    text: "› Authenticating operator session" },
-    { t: 700,  text: "› Verifying interlock matrix · 17 devices",
-                onEnter: () => { dInt.className = "rl-dot ok"; } },
-    { t: 1700, text: "› Negotiating control transfer with PLC" },
-    { t: 2500, text: "› Engaging remote channel",
-                onEnter: () => { dCtl.className = "rl-dot ok"; } },
-    { t: 2950, text: "✓ Remote control engaged" },
+  log.innerHTML = "";
+  foot.textContent = "handshake in progress…";
+  requestAnimationFrame(() => { fill.style.transition = "right 3s linear"; fill.style.right = "0%"; });
+
+  const startTs = Date.now();
+  const ts = () => {
+    const ms = Date.now() - startTs;
+    const s = (ms/1000).toFixed(3).padStart(7,"0");
+    return `[${s}s]`;
+  };
+  const append = (lvl, html) => {
+    const ln = document.createElement("div");
+    ln.className = `ln ${lvl}`;
+    ln.innerHTML = `<span class="ts">${ts()}</span><span class="lvl">${lvl.toUpperCase()}</span><span class="msg">${html}</span>`;
+    log.appendChild(ln);
+    log.scrollTop = log.scrollHeight;
+  };
+
+  const lines = [
+    [50,   "info", `OPEN tcp://10.42.7.18:4840 <span class="k">opcua</span>`],
+    [320,  "info", `TLS handshake · cipher=<span class="k">TLS_AES_256_GCM_SHA384</span>`],
+    [620,  "ok",   `PLC handshake complete · session=<span class="k">0x9F3A</span>`],
+    [900,  "info", `AUTH user=<span class="k">op-mihir</span> · role=<span class="k">section_supervisor</span>`],
+    [1180, "ok",   `Authentication OK · token TTL <span class="k">900s</span>`],
+    [1460, "info", `Interlock matrix snapshot · <span class="k">17 nodes / 6 rules</span>`],
+    [1780, "warn", `WARN BLOWER1 air-line dependency = AIR1`],
+    [2050, "ok",   `Interlocks validated`],
+    [2300, "info", `Control transfer · LOCAL → REMOTE`],
+    [2620, "ok",   `Channel ENGAGED · heartbeat 250ms`],
+    [2900, "ok",   `READY · operator now in control`],
   ];
-  const timers = stages.map(s => setTimeout(() => {
-    stage.textContent = s.text;
-    s.onEnter?.();
-  }, s.t));
+  const timers = lines.map(([t, lvl, msg]) => setTimeout(() => append(lvl, msg), t));
+
   setTimeout(() => {
     overlay.classList.add("hidden");
+    card.classList.add("done");
+    foot.textContent = "channel ready";
     timers.forEach(clearTimeout);
     onDone?.();
   }, 3050);
 }
+
+// =====================================================================
+// Zoom + Pan (viewBox manipulation)
+// =====================================================================
+let viewState = { x:0, y:0, w:1, h:1, defaultBox:null };
+
+function setViewBox(box, animate=true, duration=600) {
+  const svg = document.querySelector("#layoutHost .layout-svg");
+  if (!svg) return;
+  if (!animate) {
+    svg.setAttribute("viewBox", `${box.x} ${box.y} ${box.w} ${box.h}`);
+    viewState.x = box.x; viewState.y = box.y; viewState.w = box.w; viewState.h = box.h;
+    updateZoomLevel();
+    positionOverlays();
+    return;
+  }
+  const start = { ...viewState };
+  const t0 = performance.now();
+  const ease = t => 1 - Math.pow(1 - t, 3); // ease-out cubic
+  function tick(now) {
+    const t = Math.min(1, (now - t0) / duration);
+    const k = ease(t);
+    const cur = {
+      x: start.x + (box.x - start.x) * k,
+      y: start.y + (box.y - start.y) * k,
+      w: start.w + (box.w - start.w) * k,
+      h: start.h + (box.h - start.h) * k,
+    };
+    svg.setAttribute("viewBox", `${cur.x} ${cur.y} ${cur.w} ${cur.h}`);
+    if (t < 1) requestAnimationFrame(tick);
+    else { viewState.x = box.x; viewState.y = box.y; viewState.w = box.w; viewState.h = box.h; updateZoomLevel(); positionOverlays(); }
+  }
+  requestAnimationFrame(tick);
+}
+
+function updateZoomLevel() {
+  const lbl = document.getElementById("zoomLevel");
+  if (!lbl || !viewState.defaultBox) return;
+  const pct = Math.round((viewState.defaultBox.w / viewState.w) * 100);
+  lbl.textContent = `${pct}%`;
+}
+
+function applyViewBoxForSelection(animate=true) {
+  if (!LAYOUT) return;
+  if (!viewState.defaultBox) {
+    const b = LAYOUT.bbox;
+    viewState.defaultBox = { x:b.minX, y:b.minY, w:b.w, h:b.h };
+    viewState.x = viewState.defaultBox.x; viewState.y = viewState.defaultBox.y;
+    viewState.w = viewState.defaultBox.w; viewState.h = viewState.defaultBox.h;
+  }
+  if (selectedSection === "sbr") {
+    // Zoom to SBR bbox with padding
+    const pad = 100;
+    setViewBox({
+      x: SBR_BBOX.minX - pad, y: SBR_BBOX.minY - pad,
+      w: (SBR_BBOX.maxX - SBR_BBOX.minX) + pad*2,
+      h: (SBR_BBOX.maxY - SBR_BBOX.minY) + pad*2
+    }, animate);
+  } else {
+    setViewBox(viewState.defaultBox, animate);
+  }
+}
+
+function installZoomPan() {
+  const svg = document.querySelector("#layoutHost .layout-svg");
+  if (!svg) return;
+  // wheel zoom (centered on cursor)
+  svg.addEventListener("wheel", e => {
+    e.preventDefault();
+    const rect = svg.getBoundingClientRect();
+    const fx = (e.clientX - rect.left) / rect.width;
+    const fy = (e.clientY - rect.top) / rect.height;
+    const factor = e.deltaY > 0 ? 1.18 : 1/1.18;
+    const newW = viewState.w * factor;
+    const newH = viewState.h * factor;
+    const newX = viewState.x + (viewState.w - newW) * fx;
+    const newY = viewState.y + (viewState.h - newH) * fy;
+    setViewBox({ x:newX, y:newY, w:newW, h:newH }, false);
+  }, { passive: false });
+
+  // drag to pan
+  let panning = false, sx, sy, vx, vy;
+  svg.addEventListener("mousedown", e => {
+    if (e.target.closest("g[data-cell-id]")) return; // don't pan when clicking a device
+    panning = true; svg.classList.add("panning");
+    sx = e.clientX; sy = e.clientY; vx = viewState.x; vy = viewState.y;
+  });
+  window.addEventListener("mousemove", e => {
+    if (!panning) return;
+    const rect = svg.getBoundingClientRect();
+    const dx = (e.clientX - sx) * (viewState.w / rect.width);
+    const dy = (e.clientY - sy) * (viewState.h / rect.height);
+    setViewBox({ x: vx - dx, y: vy - dy, w: viewState.w, h: viewState.h }, false);
+  });
+  window.addEventListener("mouseup", () => { panning = false; svg.classList.remove("panning"); });
+
+  // Buttons
+  document.getElementById("zoomIn")?.addEventListener("click", () => zoomBy(1/1.25));
+  document.getElementById("zoomOut")?.addEventListener("click", () => zoomBy(1.25));
+  document.getElementById("zoomFit")?.addEventListener("click", () => applyViewBoxForSelection(true));
+}
+
+function zoomBy(factor) {
+  // zoom around current center
+  const cx = viewState.x + viewState.w/2, cy = viewState.y + viewState.h/2;
+  const w = viewState.w * factor, h = viewState.h * factor;
+  setViewBox({ x: cx - w/2, y: cy - h/2, w, h }, true, 250);
+}
+
+// =====================================================================
+// Command Panel (list view) + acted-on highlight in layout
+// =====================================================================
+let stagedCommands = {}; // { devId: nextOn }
+
+function openCmdPanel() {
+  const p = document.getElementById("cmdPanel");
+  document.querySelector(".view-viz")?.classList.add("cmd-open");
+  p?.classList.remove("hidden");
+  renderCmdPanel();
+}
+function closeCmdPanel() {
+  document.getElementById("cmdPanel")?.classList.add("hidden");
+  document.querySelector(".view-viz")?.classList.remove("cmd-open");
+  // Clear acted highlights
+  document.querySelectorAll("g[data-cell-id].acted-on,g[data-cell-id].staged").forEach(n => n.classList.remove("acted-on","staged"));
+}
+
+function renderCmdPanel() {
+  const body = document.getElementById("cmdBody");
+  if (!body) return;
+  body.innerHTML = "";
+  const groups = {
+    "Main Section": Object.entries(DEVICES).filter(([,d])=>d.loc==="main"),
+    "CASS Basin 1 (nested)": Object.entries(DEVICES).filter(([,d])=>d.loc==="BASIN1"),
+    "CASS Basin 2 (nested)": Object.entries(DEVICES).filter(([,d])=>d.loc==="BASIN2"),
+  };
+  for (const [grp, items] of Object.entries(groups)) {
+    const head = document.createElement("div");
+    head.className = "cmd-group-head";
+    head.textContent = grp;
+    body.appendChild(head);
+    for (const [id, d] of items) {
+      const isStaged = id in stagedCommands;
+      const targetOn = isStaged ? stagedCommands[id] : d.on;
+      const row = document.createElement("div");
+      row.className = "cmd-row" + (d.on ? " on-now" : "") + (isStaged ? " staged" : "");
+      row.dataset.id = id;
+      row.innerHTML = `
+        <div class="cmd-check ${isStaged ? "on" : ""}" title="Stage / unstage"></div>
+        <div class="cmd-icon">${iconFor(d.type)}</div>
+        <div class="cmd-name">${d.name}<span class="sec">${grp}</span></div>
+        <span class="cmd-state ${d.on?"on":""} ${isStaged?"staged":""}">${isStaged ? (targetOn?"→ ON":"→ OFF") : (d.on?"ON":"OFF")}</span>
+        <label class="switch cmd-toggle"><input type="checkbox" ${d.on?"checked":""}><span class="slider"></span></label>
+      `;
+      body.appendChild(row);
+      // Direct toggle (instant)
+      row.querySelector("input[type=checkbox]").addEventListener("change", e => {
+        attemptToggleFromList(id, e.target.checked, row);
+      });
+      // Stage checkbox: toggle staging
+      row.querySelector(".cmd-check").addEventListener("click", e => {
+        e.stopPropagation();
+        if (id in stagedCommands) delete stagedCommands[id];
+        else stagedCommands[id] = !d.on; // stage flip
+        renderCmdPanel(); refreshLayoutHighlights();
+      });
+      // hover row → highlight cell briefly
+      row.addEventListener("mouseenter", () => highlightCellForDevice(id, "preview"));
+      row.addEventListener("mouseleave", () => highlightCellForDevice(id, "off"));
+    }
+  }
+  // Footer state
+  const n = Object.keys(stagedCommands).length;
+  document.getElementById("cmdStaged").textContent = `${n} staged`;
+  const apply = document.getElementById("cmdApplyStaged");
+  apply.textContent = `Apply ${n} command${n===1?"":"s"}`;
+  apply.disabled = n === 0;
+}
+
+function attemptToggleFromList(id, nextOn, rowEl) {
+  const d = DEVICES[id];
+  if (d.mode !== "remote") { toast("Engage remote first", "warn"); return; }
+  const block = checkInterlock(id, nextOn);
+  if (block) { toast(block, "bad"); renderCmdPanel(); return; }
+  d.on = nextOn;
+  highlightCellForDevice(id, "acted");
+  toast(`${d.name} → ${nextOn?"ON":"OFF"}`, "ok");
+  renderAll();
+  renderCmdPanel();
+  // fade highlight after 2s
+  setTimeout(() => highlightCellForDevice(id, "off"), 2200);
+}
+
+function applyStagedCommands() {
+  const ids = Object.keys(stagedCommands);
+  if (!ids.length) return;
+  let okN = 0, blocked = [];
+  for (const id of ids) {
+    const next = stagedCommands[id];
+    const block = checkInterlock(id, next);
+    if (block) { blocked.push(`${DEVICES[id].name}: ${block}`); continue; }
+    DEVICES[id].on = next; okN++;
+    highlightCellForDevice(id, "acted");
+  }
+  stagedCommands = {};
+  renderAll(); renderCmdPanel();
+  setTimeout(() => document.querySelectorAll("g[data-cell-id].acted-on").forEach(n => n.classList.remove("acted-on")), 2400);
+  toast(`Applied ${okN} command${okN===1?"":"s"}${blocked.length?` · ${blocked.length} blocked`:""}`, blocked.length ? "warn" : "ok");
+}
+
+function refreshLayoutHighlights() {
+  // Mark staged cells in the SVG
+  document.querySelectorAll("g[data-cell-id].staged").forEach(n => n.classList.remove("staged"));
+  for (const id of Object.keys(stagedCommands)) {
+    forEachCellNodeForDevice(id, n => n.classList.add("staged"));
+  }
+}
+
+function forEachCellNodeForDevice(devId, fn) {
+  if (!LAYOUT) return;
+  for (const c of LAYOUT.elements) {
+    if (cellDeviceId(c) === devId) {
+      const node = document.querySelector(`#layoutHost g[data-cell-id="${c.id}"]`);
+      if (node) fn(node);
+    }
+  }
+}
+
+function highlightCellForDevice(devId, mode) {
+  forEachCellNodeForDevice(devId, n => {
+    n.classList.toggle("acted-on", mode === "acted" || mode === "preview");
+  });
+}
+
+function iconFor(type) {
+  switch(type) {
+    case "valve": return "⛒";
+    case "blower": return "✱";
+    case "pump": return "⏣";
+    case "decanter": return "⇊";
+    default: return "□";
+  }
+}
+
+
 
 let toastT;
 function toast(msg, kind="") {
@@ -1071,7 +1344,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // SCADA tank-expand buttons
   $$(".tank-expand-btn").forEach(b => b.addEventListener("click", () => toggleTankExpand(b.dataset.tank)));
 
-  // Reposition overlays + section frame on resize/scroll
+  // Command panel
+  document.getElementById("cmdClose")?.addEventListener("click", closeCmdPanel);
+  document.getElementById("cmdApplyStaged")?.addEventListener("click", applyStagedCommands);
+  document.getElementById("cmdClearStaged")?.addEventListener("click", () => { stagedCommands = {}; renderCmdPanel(); refreshLayoutHighlights(); });
+
+  // Reposition overlays + section visuals on resize/scroll
   const reflow = () => { positionOverlays(); applySectionSelectionVisuals(); };
   window.addEventListener("resize", reflow);
   window.addEventListener("scroll", reflow, true);

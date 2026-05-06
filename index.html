@@ -109,18 +109,43 @@
     <span class="legend"><i class="lg air"></i> Air <i class="lg water"></i> Inlet <i class="lg sludge"></i> Sludge</span>
   </div>
 
-  <div class="layout-grid">
-    <div class="scada-wrap" id="scadaWrap" data-copy="A">
-      <div class="layout-tag">Layout A · interactive</div>
-      <div id="layoutHost" class="layout-host"></div>
-      <div class="tank-drawer hidden" data-viz-internals="BASIN1" id="vizDrawer1"></div>
-      <div class="tank-drawer hidden" data-viz-internals="BASIN2" id="vizDrawer2"></div>
+  <div class="scada-wrap" id="scadaWrap">
+    <div id="layoutHost" class="layout-host"></div>
+
+    <!-- Zoom / pan controls -->
+    <div class="zoom-controls" aria-label="Layout zoom controls">
+      <button class="zbtn" id="zoomIn"  title="Zoom in (+ / wheel up)">＋</button>
+      <button class="zbtn" id="zoomOut" title="Zoom out (− / wheel down)">−</button>
+      <button class="zbtn wide" id="zoomFit" title="Fit / reset">FIT</button>
+      <span class="zoom-level" id="zoomLevel">100%</span>
     </div>
-    <div class="scada-wrap" id="scadaWrapB" data-copy="B">
-      <div class="layout-tag layout-tag-b">Layout B · reference (no section assigned)</div>
-      <div id="layoutHostB" class="layout-host"></div>
-    </div>
+
+    <div class="tank-drawer hidden" data-viz-internals="BASIN1" id="vizDrawer1"></div>
+    <div class="tank-drawer hidden" data-viz-internals="BASIN2" id="vizDrawer2"></div>
   </div>
+
+  <!-- Equipment command list panel (slides in when remote engaged) -->
+  <aside id="cmdPanel" class="cmd-panel hidden" aria-label="Equipment command list">
+    <div class="cmd-head">
+      <div>
+        <div class="cmd-title">Equipment Control</div>
+        <div class="cmd-sub" id="cmdSub">Remote engaged · click toggles or stage batch commands</div>
+      </div>
+      <button class="link" id="cmdClose">collapse ›</button>
+    </div>
+    <div class="cmd-body" id="cmdBody"></div>
+    <div class="cmd-foot">
+      <div class="cmd-foot-info">
+        <span id="cmdStaged">0 staged</span>
+        <span class="sep">·</span>
+        <span id="cmdRunning">0 running</span>
+      </div>
+      <div class="cmd-foot-actions">
+        <button class="btn ghost sm" id="cmdClearStaged">Clear</button>
+        <button class="btn primary sm" id="cmdApplyStaged" disabled>Apply 0 commands</button>
+      </div>
+    </div>
+  </aside>
 </main>
 
 <!-- Take-control modal -->
@@ -160,42 +185,21 @@
 
 <div id="toast" class="toast hidden"></div>
 
-<!-- Futuristic 3-second loader shown when entering Remote mode -->
+<!-- Technical 3-second loader -->
 <div id="remoteLoader" class="rl hidden" aria-hidden="true">
-  <div class="rl-bg">
-    <svg class="rl-grid" viewBox="0 0 1000 600" preserveAspectRatio="none">
-      <defs>
-        <pattern id="rlGrid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(124,180,255,.18)" stroke-width="1"/>
-        </pattern>
-      </defs>
-      <rect width="1000" height="600" fill="url(#rlGrid)"/>
-    </svg>
-  </div>
   <div class="rl-card">
-    <div class="rl-rings">
-      <div class="rl-ring r1"></div>
-      <div class="rl-ring r2"></div>
-      <div class="rl-ring r3"></div>
-      <svg class="rl-core" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r="32" fill="none" stroke="rgba(124,180,255,.3)" stroke-width="1"/>
-        <circle cx="50" cy="50" r="24" fill="none" stroke="rgba(124,180,255,.55)" stroke-width="1.5" stroke-dasharray="4 6"/>
-        <circle cx="50" cy="50" r="6" fill="#7cc4ff"/>
-        <g class="rl-sweep">
-          <line x1="50" y1="50" x2="50" y2="14" stroke="#7cc4ff" stroke-width="2" stroke-linecap="round"/>
-        </g>
-      </svg>
-    </div>
-    <div class="rl-text">
-      <div class="rl-title">ESTABLISHING REMOTE LINK</div>
-      <div class="rl-stage" id="rlStage">› Authenticating operator session</div>
-      <div class="rl-bar"><div class="rl-bar-fill" id="rlBarFill"></div></div>
-      <div class="rl-meta">
-        <span><span class="rl-dot ok"></span>PLC handshake</span>
-        <span><span class="rl-dot wait" id="rlDotInterlock"></span>Interlock check</span>
-        <span><span class="rl-dot wait" id="rlDotControl"></span>Control transfer</span>
+    <div class="rl-head">
+      <div class="rl-head-left">
+        <span class="rl-led"></span>
+        <span class="rl-tag">REMOTE LINK · NEGOTIATING</span>
       </div>
-      <div class="rl-foot">SECURE CHANNEL · TLS 1.3 · AES-256</div>
+      <span class="rl-host" id="rlHost">PLC-MUM-01 :: 10.42.7.18</span>
+    </div>
+    <div class="rl-bar"><div class="rl-bar-fill" id="rlBarFill"></div></div>
+    <div class="rl-log" id="rlLog"></div>
+    <div class="rl-foot">
+      <span>TLS 1.3 · AES-256-GCM</span>
+      <span id="rlFootStatus">handshake in progress…</span>
     </div>
   </div>
 </div>
