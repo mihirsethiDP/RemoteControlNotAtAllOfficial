@@ -155,6 +155,16 @@ select{background:#0f1626;color:var(--text);border:1px solid var(--line);padding
 }
 .scada{display:block;width:100%;height:auto;background:#dfe6ef}
 
+.layout-host{position:relative;width:100%;height:780px;overflow:hidden}
+.layout-svg{display:block;width:100%;height:100%}
+.layout-svg text{font-family:system-ui,Segoe UI,Inter,sans-serif}
+.layout-svg .lay-pipe{pointer-events:none}
+.layout-svg .layer-pipes polyline{stroke-linejoin:miter}
+.layout-svg .lay-blower, .layout-svg .lay-valve, .layout-svg .lay-sub-pmp{cursor:pointer}
+.layout-svg .lay-blower:hover .fan circle,
+.layout-svg .lay-valve:hover .valve-body{filter:brightness(1.15)}
+.view-viz.remote .scada-wrap{box-shadow:inset 0 0 0 3px rgba(124,92,255,.5)}
+
 /* SCADA elements use light SCADA palette inside SVG; HTML overlays sit on top */
 .scada text{font-family:system-ui,Segoe UI,Inter,sans-serif}
 .scada .scada-group-outline{stroke:#3a4a7a;stroke-width:2;stroke-dasharray:8 6;transition:stroke .2s}

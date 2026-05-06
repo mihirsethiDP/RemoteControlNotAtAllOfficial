@@ -90,7 +90,376 @@ function renderEngTankInternals(tankId) {
   });
 }
 
-// ---------- SCADA SVG device drawing ----------
+// =====================================================================
+// JSON-driven Plant Layout renderer (consumes JointJS-format cells)
+// =====================================================================
+
+// Map JointJS equipment labels -> our DEVICES ids (for remote control wiring)
+const LABEL_TO_DEVICE = {
+  "SBR 1 Inlet Valve": "SBR1_INLET",
+  "SBR 2 Inlet Valve": "SBR2_INLET",
+  "SBR 1 Air Inlet Line": "AIR1",
+  "SBR 2 Air Inlet Line": "AIR2",
+  "Re-Circulation Pump - A1": "RECIRC_A1",
+  "Re-Circulation Pump - A2": "RECIRC_A2",
+  "Sludge Sump Pump - A1": "SLUDGE_A1",
+  "Sludge Sump Pump - A2": "SLUDGE_A2",
+  "Re-Circulation Pump - B1": "RECIRC_B1",
+  "Re-Circulation Pump - B2": "RECIRC_B2",
+  "Sludge Sump Pump - B1": "SLUDGE_B1",
+  "Sludge Sump Pump - B2": "SLUDGE_B2",
+  // Decanter not present in SBR section JSON; keep DECANTER virtual
+};
+
+let LAYOUT = null;     // { cells, idIndex, bbox, viewBox, blowerOrderIds }
+let CELL_BY_ID = {};
+
+function loadLayout() {
+  const cells = (window.SBR_CELLS || []).slice();
+  const elements = cells.filter(c => c.type !== "Pipe" && c.type !== "standard.Link" && c.position);
+  const links    = cells.filter(c => c.type === "Pipe" || c.type === "standard.Link");
+
+  // Index by id
+  const idx = {};
+  for (const c of cells) if (c.id) idx[c.id] = c;
+
+  // Bounding box of elements
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for (const c of elements) {
+    const x = c.position.x, y = c.position.y;
+    const w = c.size?.width||0, h = c.size?.height||0;
+    if (x < minX) minX = x; if (y < minY) minY = y;
+    if (x+w > maxX) maxX = x+w; if (y+h > maxY) maxY = y+h;
+  }
+  // Padding
+  const pad = 80;
+  minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+
+  // Order blowers (BLW) top-to-bottom so we can map them to BLOWER1..4
+  const blowers = elements.filter(c => c.type === "BLW").sort((a,b) => a.position.y - b.position.y);
+
+  LAYOUT = {
+    cells, elements, links, idx,
+    bbox: { minX, minY, maxX, maxY, w: maxX-minX, h: maxY-minY },
+    blowerOrderIds: blowers.map(b => b.id)
+  };
+  CELL_BY_ID = idx;
+}
+
+// Resolve a cell -> our DEVICES id (or null)
+function cellDeviceId(cell) {
+  const lbl = cell.attrs?.label?.text?.trim();
+  if (lbl && LABEL_TO_DEVICE[lbl]) return LABEL_TO_DEVICE[lbl];
+  if (cell.type === "BLW") {
+    const i = LAYOUT.blowerOrderIds.indexOf(cell.id);
+    if (i >= 0) return `BLOWER${i+1}`;
+  }
+  if (cell.type === "SBR_TANK") {
+    // Two SBR_TANK cells; first one (lower y) = BASIN1, second = BASIN2
+    const tanks = LAYOUT.elements.filter(c => c.type === "SBR_TANK").sort((a,b)=>a.position.y-b.position.y);
+    return tanks[0]?.id === cell.id ? "BASIN1" : "BASIN2";
+  }
+  return null;
+}
+
+// ---------- Per-type SVG drawers ----------
+function elGroup(c, klass) {
+  const g = svgEl("g", { class: klass, "data-cell-id": c.id });
+  const cx = c.position.x + (c.size?.width||0)/2;
+  const cy = c.position.y + (c.size?.height||0)/2;
+  if (c.angle) g.setAttribute("transform", `translate(${c.position.x},${c.position.y}) rotate(${c.angle} ${(c.size?.width||0)/2} ${(c.size?.height||0)/2})`);
+  else g.setAttribute("transform", `translate(${c.position.x},${c.position.y})`);
+  return g;
+}
+
+function drawSbrTank(c) {
+  const g = elGroup(c, "lay-sbr-tank");
+  const w = c.size.width, h = c.size.height;
+  // tank wall
+  g.appendChild(svgEl("rect", { x:0, y:0, width:w, height:h, fill:"#9ec6f5", stroke:"#23344e", "stroke-width":3 }));
+  // water with level (level = % from JSON)
+  const lvl = (c.level ?? 60) / 100;
+  const wh = h * lvl;
+  g.appendChild(svgEl("rect", { x:2, y:h-wh, width:w-4, height:wh, fill:"#5e9bd8", opacity:.85 }));
+  g.appendChild(svgEl("rect", { x:2, y:h-wh, width:w-4, height:6, fill:"#cfe6ff", opacity:.6 }));
+  // diffuser bar at floor (Zone-3)
+  g.appendChild(svgEl("rect", { x:20, y:h-22, width:w-40, height:6, fill:"#5a3aae" }));
+  // bubble dots
+  for (let i=0;i<14;i++){
+    g.appendChild(svgEl("circle", { cx:30+i*((w-60)/13), cy:h-30-((i%3)*8), r:3, fill:"#7c5cff", opacity:.7 }));
+  }
+  // label
+  const t = svgEl("text", { x:w/2, y:24, "text-anchor":"middle", "font-size":18, fill:"#0d2240", "font-weight":"700" });
+  t.textContent = c.attrs?.label?.text || "";
+  g.appendChild(t);
+  return g;
+}
+
+function drawOsTank(c, isDf) {
+  const g = elGroup(c, "lay-os-tank");
+  const w = c.size.width, h = c.size.height;
+  g.appendChild(svgEl("rect", { x:0, y:0, width:w, height:h, fill: isDf ? "#9ec6f5" : "#cfdaeb", stroke:"#23344e", "stroke-width":3 }));
+  const lvl = 0.6;
+  g.appendChild(svgEl("rect", { x:2, y:h*(1-lvl), width:w-4, height:h*lvl-2, fill:"#5e9bd8", opacity:.85 }));
+  if (isDf) {
+    // diffuser pattern
+    for (let i=0;i<10;i++){
+      g.appendChild(svgEl("circle", { cx:20+i*((w-40)/9), cy:h-20, r:2.5, fill:"#7c5cff" }));
+    }
+  }
+  const t = svgEl("text", { x:w/2, y:24, "text-anchor":"middle", "font-size":16, fill:"#0d2240", "font-weight":"700" });
+  t.textContent = c.attrs?.label?.text || "";
+  g.appendChild(t);
+  return g;
+}
+
+function drawValve(c) {
+  const g = elGroup(c, "lay-valve");
+  const w = c.size.width, h = c.size.height;
+  // pipe ends
+  g.appendChild(svgEl("rect", { x:-12, y:h*.35, width:w+24, height:h*.30, fill:"#9aa6c0", stroke:"#3a3a3a", "stroke-width":1.2 }));
+  // body
+  const dev = cellDeviceId(c);
+  const on = dev && DEVICES[dev]?.on;
+  g.appendChild(svgEl("rect", { x:w*.12, y:h*.12, width:w*.76, height:h*.76, fill: on ? "#22a043" : "#c92626", stroke:"#101010", "stroke-width":1.5, class:"valve-body" }));
+  // handle
+  g.appendChild(svgEl("rect", { x:w/2-2, y:-h*.28, width:4, height:h*.4, fill:"#3a3a3a" }));
+  g.appendChild(svgEl("circle", { cx:w/2, cy:-h*.28, r:5, fill:"#3a3a3a" }));
+  // label below
+  const t = svgEl("text", { x:w/2, y:h+18, "text-anchor":"middle", "font-size":12, fill:"#0d2240" });
+  t.textContent = c.attrs?.label?.text || "";
+  g.appendChild(t);
+  return g;
+}
+
+function drawBlower(c) {
+  const g = elGroup(c, "lay-blower");
+  const w = c.size.width, h = c.size.height;
+  const dev = cellDeviceId(c);
+  const on = dev && DEVICES[dev]?.on;
+  // Body
+  g.appendChild(svgEl("rect", { x:0, y:0, width:w, height:h, rx:8, fill:"#dfe6ef", stroke:"#23344e", "stroke-width":2 }));
+  // Impeller circle
+  const cx = w/2, cy = h/2;
+  g.appendChild(svgEl("circle", { cx, cy, r: Math.min(w,h)*0.32, fill:"#94a3b8", stroke:"#23344e", "stroke-width":1.5 }));
+  const fan = svgEl("g", { class:"fan", style: on ? "transform-origin:center;transform-box:fill-box;animation:spin 1s linear infinite" : ""});
+  fan.setAttribute("transform", `translate(${cx},${cy})`);
+  for (let i=0;i<3;i++){
+    const blade = svgEl("path", { d: "M0,-30 L9,-2 L-9,-2 Z", fill: on ? "#22a043" : "#c92626" });
+    blade.setAttribute("transform", `rotate(${i*120})`);
+    fan.appendChild(blade);
+  }
+  fan.appendChild(svgEl("circle", { r:6, fill:"#101010" }));
+  g.appendChild(fan);
+  return g;
+}
+
+function drawSubPmp(c) {
+  const g = elGroup(c, "lay-sub-pmp");
+  const w = c.size.width, h = c.size.height;
+  const dev = cellDeviceId(c);
+  const on = dev && DEVICES[dev]?.on;
+  // submersible: vertical body with impeller at top, riser pipe
+  const cx = w/2;
+  // riser pipe up
+  g.appendChild(svgEl("rect", { x:cx-8, y:0, width:16, height:h*0.45, fill:"#9aa6c0", stroke:"#3a3a3a" }));
+  // motor body
+  g.appendChild(svgEl("rect", { x:cx-30, y:h*0.45, width:60, height:h*0.30, rx:8, fill:"#1a1a1a", stroke:"#000" }));
+  // impeller housing
+  g.appendChild(svgEl("circle", { cx, cy:h*0.85, r: Math.min(w,h)*0.18, fill: on ? "#22a043" : "#c92626", stroke:"#101010", "stroke-width":2 }));
+  // blades
+  const fan = svgEl("g", { class:"fan", style: on ? "transform-origin:center;transform-box:fill-box;animation:spin .9s linear infinite" : "" });
+  fan.setAttribute("transform", `translate(${cx},${h*0.85})`);
+  const r = Math.min(w,h)*0.16;
+  for (let i=0;i<3;i++){
+    const blade = svgEl("path", { d:`M0,-${r} L${r*.3},-${r*.2} L-${r*.3},-${r*.2} Z`, fill:"#fff" });
+    blade.setAttribute("transform", `rotate(${i*120})`);
+    fan.appendChild(blade);
+  }
+  fan.appendChild(svgEl("circle", { r:5, fill:"#101010" }));
+  g.appendChild(fan);
+  // label
+  const t = svgEl("text", { x:w/2, y:h+18, "text-anchor":"middle", "font-size":13, fill:"#0d2240" });
+  t.textContent = c.attrs?.label?.text || "";
+  g.appendChild(t);
+  return g;
+}
+
+function drawLevelSensor(c) {
+  const g = elGroup(c, "lay-level");
+  const w = c.size.width, h = c.size.height;
+  const lvl = (c.level ?? 50) / 100;
+  // frame
+  g.appendChild(svgEl("rect", { x:w*.15, y:8, width:w*.45, height:h-16, fill:"#0f1626", stroke:"#3b4d70" }));
+  // fill from bottom
+  const fillH = (h-16)*lvl;
+  g.appendChild(svgEl("rect", { x:w*.17, y:h-8-fillH, width:w*.41, height:fillH, fill: c.liquidColor || "#1f8a3a" }));
+  // tick marks + numbers
+  const ticks = 10;
+  for (let i=0;i<=ticks;i++){
+    const ty = 8 + (h-16) * (i/ticks);
+    g.appendChild(svgEl("line", { x1:w*.62, y1:ty, x2:w*.70, y2:ty, stroke:"#0d2240", "stroke-width":1 }));
+    const t = svgEl("text", { x:w*.74, y:ty+4, "font-size":9, fill:"#0d2240" });
+    t.textContent = String(100 - i*10);
+    g.appendChild(t);
+  }
+  const t = svgEl("text", { x:w/2, y:h-2+18, "text-anchor":"middle", "font-size":12, fill:"#0d2240", "font-weight":"700" });
+  t.textContent = c.attrs?.label?.text || "Level";
+  g.appendChild(t);
+  return g;
+}
+
+function drawNumberSensor(c) {
+  const g = elGroup(c, "lay-num");
+  const w = c.size.width, h = c.size.height;
+  const lbl = svgEl("text", { x:w/2, y:14, "text-anchor":"middle", "font-size":11, fill:"#0d2240" });
+  lbl.textContent = c.attrs?.label?.text || "";
+  g.appendChild(lbl);
+  g.appendChild(svgEl("rect", { x:6, y:22, width:w-12, height:h-30, fill:"#0f1626", stroke:"#3a4a7a" }));
+  const v = svgEl("text", { x:w/2, y:h-12, "text-anchor":"middle", "font-size":18, fill:"#fff", "font-weight":"700" });
+  v.textContent = (c.value ?? 0).toString();
+  g.appendChild(v);
+  return g;
+}
+
+function drawSwitchSensor(c) {
+  const g = elGroup(c, "lay-switch");
+  const w = c.size.width, h = c.size.height;
+  // Red square (matching screenshot's ON/OFF tile)
+  g.appendChild(svgEl("rect", { x:w*.15, y:6, width:w*.7, height:w*.7, fill:"#c92626", stroke:"#7a0e0e", "stroke-width":1.5 }));
+  g.appendChild(svgEl("circle", { cx:w/2, cy:6+w*.35, r:5, fill:"#fff" }));
+  const t = svgEl("text", { x:w/2, y:h-4, "text-anchor":"middle", "font-size":10, fill:"#0d2240", "font-weight":"700" });
+  t.textContent = c.attrs?.label?.text || "ON/OFF";
+  g.appendChild(t);
+  return g;
+}
+
+function drawZone(c) {
+  const g = elGroup(c, "lay-zone");
+  const w = c.size.width, h = c.size.height;
+  // arrow chip showing flow direction
+  g.appendChild(svgEl("path", { d:`M0,${h/2} L${w*.8},${h/2} L${w*.8},2 L${w},${h/2} L${w*.8},${h-2} L${w*.8},${h/2}`, fill:"#cfe3ff", stroke:"#3a4a7a" }));
+  const t = svgEl("text", { x:w/2-4, y:h/2+4, "text-anchor":"middle", "font-size":10, fill:"#0d2240" });
+  t.textContent = c.attrs?.label?.text || "";
+  g.appendChild(t);
+  return g;
+}
+
+function drawJoins(c) {
+  const g = elGroup(c, "lay-join");
+  const w = c.size.width, h = c.size.height;
+  g.appendChild(svgEl("circle", { cx:w/2, cy:h/2, r:Math.min(w,h)/2-2, fill:"#fff", stroke:"#3a4a7a", "stroke-width":1.5 }));
+  const t = svgEl("text", { x:w/2, y:h/2+3, "text-anchor":"middle", "font-size":9, fill:"#0d2240" });
+  t.textContent = c.attrs?.label?.text || "";
+  g.appendChild(t);
+  return g;
+}
+
+function drawLabelWidget(c) {
+  const g = elGroup(c, "lay-label");
+  const w = c.size.width, h = c.size.height;
+  const t = svgEl("text", { x:w/2, y:h/2+5, "text-anchor":"middle", "font-size":14, fill:"#0d2240", "font-weight":"700" });
+  t.textContent = c.attrs?.label?.text || "";
+  g.appendChild(t);
+  return g;
+}
+
+const TYPE_DRAWERS = {
+  SBR_TANK: drawSbrTank,
+  OS_TANK: c => drawOsTank(c, false),
+  OS_TANK_DF: c => drawOsTank(c, true),
+  VALVE_2: drawValve,
+  BLW: drawBlower,
+  SUB_PMP: drawSubPmp,
+  PMP: drawSubPmp,
+  LEVEL_SENSOR: drawLevelSensor,
+  NUMBER_SENSOR: drawNumberSensor,
+  SWITCH_SENSOR: drawSwitchSensor,
+  ZONE: drawZone,
+  JOINS: drawJoins,
+  LABEL_WIDGET: drawLabelWidget,
+};
+
+function cellCenter(cell) {
+  if (!cell || !cell.position) return null;
+  return { x: cell.position.x + (cell.size?.width||0)/2, y: cell.position.y + (cell.size?.height||0)/2 };
+}
+
+function drawPipe(p) {
+  const src = CELL_BY_ID[p.source?.id];
+  const tgt = CELL_BY_ID[p.target?.id];
+  if (!src || !tgt) return null;
+  const a = cellCenter(src), b = cellCenter(tgt);
+  if (!a || !b) return null;
+  const verts = (p.vertices || []).map(v => `${v.x},${v.y}`);
+  const pts = [`${a.x},${a.y}`, ...verts, `${b.x},${b.y}`];
+  const g = svgEl("g", { class: "lay-pipe" });
+  // Outer pipe
+  g.appendChild(svgEl("polyline", { points: pts.join(" "), fill:"none", stroke:"#7e96b3", "stroke-width":8, "stroke-linejoin":"miter", "stroke-linecap":"butt" }));
+  // Inner color (liquid)
+  g.appendChild(svgEl("polyline", { points: pts.join(" "), fill:"none", stroke: p.liquidColor || "#cfd8ee", "stroke-width":4, "stroke-linejoin":"miter", "stroke-linecap":"butt", opacity:.9 }));
+  return g;
+}
+
+// Renders the layout into #layoutHost as SVG
+function renderLayout() {
+  if (!LAYOUT) loadLayout();
+  const host = document.getElementById("layoutHost");
+  if (!host || !LAYOUT) return;
+  host.innerHTML = "";
+
+  const { bbox, elements, links } = LAYOUT;
+  const svg = svgEl("svg", {
+    class: "layout-svg",
+    viewBox: `${bbox.minX} ${bbox.minY} ${bbox.w} ${bbox.h}`,
+    preserveAspectRatio: "xMidYMid meet"
+  });
+  host.appendChild(svg);
+
+  // Background grid is provided by CSS on .scada-wrap
+
+  // Order: pipes first (behind), then non-tanks, then tanks, then text labels
+  const layerPipes = svgEl("g", { class:"layer-pipes" });
+  const layerBack  = svgEl("g", { class:"layer-back"  });
+  const layerEquip = svgEl("g", { class:"layer-equip" });
+  const layerText  = svgEl("g", { class:"layer-text"  });
+  svg.append(layerPipes, layerBack, layerEquip, layerText);
+
+  for (const p of links) { const el = drawPipe(p); if (el) layerPipes.appendChild(el); }
+
+  for (const c of elements) {
+    const drawer = TYPE_DRAWERS[c.type];
+    if (!drawer) continue;
+    const node = drawer(c);
+    if (!node) continue;
+    if (c.type === "SBR_TANK" || c.type === "OS_TANK" || c.type === "OS_TANK_DF") layerBack.appendChild(node);
+    else if (c.type === "LABEL_WIDGET" || c.type === "NUMBER_SENSOR") layerText.appendChild(node);
+    else layerEquip.appendChild(node);
+  }
+
+  // After drawing, anchor tank-expand buttons on top of each SBR_TANK
+  positionTankExpands();
+  // Anchor remote-control overlays (HTML) on each interactive cell
+  positionOverlays();
+}
+
+function positionTankExpands() {
+  const wrap = document.getElementById("scadaWrap");
+  const svg = wrap.querySelector(".layout-svg");
+  if (!wrap || !svg) return;
+  const tanks = LAYOUT.elements.filter(c => c.type === "SBR_TANK").sort((a,b)=>a.position.y-b.position.y);
+  const wrapRect = wrap.getBoundingClientRect();
+  for (let i=0;i<tanks.length;i++){
+    const c = tanks[i];
+    const node = svg.querySelector(`g[data-cell-id="${c.id}"]`);
+    const btn = document.getElementById(`tankExpand${i+1}`);
+    if (!node || !btn) continue;
+    const bb = node.getBoundingClientRect();
+    btn.style.left = (bb.left - wrapRect.left + bb.width/2) + "px";
+    btn.style.top  = (bb.top - wrapRect.top + 8) + "px";
+    btn.style.transform = "translateX(-50%)";
+  }
+}
 const SVG_NS = "http://www.w3.org/2000/svg";
 function svgEl(tag, attrs={}) {
   const el = document.createElementNS(SVG_NS, tag);
@@ -158,27 +527,8 @@ function drawDecanterSvg(g, on) {
 }
 
 function renderScada() {
-  // Pumps
-  document.querySelectorAll(".pump-svg").forEach(g => {
-    const id = g.dataset.id;
-    drawPumpSvg(g, DEVICES[id]?.on);
-  });
-  // Valves
-  document.querySelectorAll(".valve-svg").forEach(g => {
-    const id = g.dataset.id;
-    drawValveSvg(g, DEVICES[id]?.on, g.classList.contains("air"));
-  });
-  // Blowers
-  document.querySelectorAll(".blower-svg").forEach(g => {
-    const id = g.dataset.id;
-    const idx = id.replace("BLOWER", "");
-    drawBlowerSvg(g, DEVICES[id]?.on, idx);
-  });
-  // Decanter
-  document.querySelectorAll(".decanter-svg").forEach(g => {
-    drawDecanterSvg(g, DEVICES[g.dataset.id]?.on);
-  });
-  positionOverlays();
+  // Re-render the JSON-driven layout so device on/off state propagates
+  renderLayout();
 }
 
 // ---------- HTML overlay controls anchored over SVG devices ----------
@@ -191,33 +541,43 @@ const ANCHORS = {
 };
 
 function positionOverlays() {
-  const layer = document.getElementById("overlayLayer");
-  if (!layer) return;
-  const wrap = document.querySelector(".scada-wrap");
-  const svg = document.querySelector(".scada");
-  if (!wrap || !svg) return;
+  const wrap = document.getElementById("scadaWrap");
+  if (!wrap || !LAYOUT) return;
+  const svg = wrap.querySelector(".layout-svg");
+  if (!svg) return;
+  // Ensure overlay layer exists
+  let layer = wrap.querySelector(".overlay-layer");
+  if (!layer) {
+    layer = document.createElement("div");
+    layer.className = "overlay-layer";
+    wrap.appendChild(layer);
+  }
   const wrapRect = wrap.getBoundingClientRect();
+  const seen = new Set();
 
-  // Build/refresh overlay for each device
-  for (const id of Object.keys(ANCHORS)) {
-    const node = svg.querySelector(`[data-id="${id}"]`);
+  // Walk every interactive cell and place its overlay
+  for (const c of LAYOUT.elements) {
+    const devId = cellDeviceId(c);
+    if (!devId || !DEVICES[devId]) continue;
+    if (DEVICES[devId].loc !== "main") continue; // tank-internals are in the drawer
+    seen.add(devId);
+    const node = svg.querySelector(`g[data-cell-id="${c.id}"]`);
     if (!node) continue;
     const bb = node.getBoundingClientRect();
     const cx = bb.left - wrapRect.left + bb.width / 2;
-    const cy = bb.bottom - wrapRect.top + 4;
+    const cy = bb.bottom - wrapRect.top + 6;
 
-    let ctl = layer.querySelector(`.ctl[data-id="${id}"]`);
+    let ctl = layer.querySelector(`.ctl[data-id="${devId}"]`);
     if (!ctl) {
       ctl = document.createElement("div");
       ctl.className = "ctl";
-      ctl.dataset.id = id;
+      ctl.dataset.id = devId;
       layer.appendChild(ctl);
     }
     ctl.style.left = cx + "px";
     ctl.style.top  = cy + "px";
 
-    // refill
-    const d = DEVICES[id];
+    const d = DEVICES[devId];
     ctl.innerHTML = "";
     const pill = document.createElement("span");
     pill.className = "mode-pill sm " + (d.mode === "remote" ? "remote" : "local");
@@ -226,10 +586,14 @@ function positionOverlays() {
     const lab = document.createElement("label"); lab.className = "switch";
     const inp = document.createElement("input");
     inp.type = "checkbox"; inp.checked = d.on; inp.disabled = d.mode !== "remote";
-    inp.addEventListener("change", e => attemptToggle(id, e.target.checked, ctl));
+    inp.addEventListener("change", e => attemptToggle(devId, e.target.checked, ctl));
     const sl = document.createElement("span"); sl.className = "slider";
     lab.append(inp, sl); ctl.appendChild(lab);
   }
+  // Remove orphaned overlays
+  layer.querySelectorAll(".ctl").forEach(c => { if (!seen.has(c.dataset.id)) c.remove(); });
+
+  positionTankExpands();
 }
 
 function renderVizTankInternals(tankId) {
@@ -416,8 +780,7 @@ function setView(name) {
   $("#view-engineering").classList.toggle("hidden", name !== "engineering");
   $("#view-viz").classList.toggle("hidden", name !== "viz");
   if (name === "viz") {
-    // overlays need the SVG to be laid out
-    requestAnimationFrame(() => positionOverlays());
+    requestAnimationFrame(() => { renderLayout(); positionOverlays(); });
   }
 }
 
