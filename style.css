@@ -32,21 +32,77 @@ button{font:inherit;color:inherit}
 .mode-pill.local{background:#1c2538;color:#9aa6c0;border:1px solid var(--line)}
 .mode-pill.remote{background:rgba(124,92,255,.15);color:#b9a7ff;border:1px solid #4a3ea0}
 
-/* Section picker pill */
-.section-picker{display:flex;align-items:center}
-.section-btn{
-  display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);
-  color:var(--text);padding:6px 14px 6px 10px;border-radius:999px;cursor:pointer;
-  transition:border-color .15s,background .15s
+/* Section picker — refined dropdown pill */
+.section-picker{position:relative;display:flex;align-items:center}
+.section-trigger{
+  display:flex;align-items:center;gap:10px;
+  background:linear-gradient(180deg,#1a2236,#141a2a);
+  border:1px solid #2a3350;color:var(--text);
+  padding:7px 12px;min-width:200px;border-radius:10px;cursor:pointer;
+  transition:border-color .18s,background .18s,box-shadow .18s
 }
-.section-btn:hover{border-color:#3e4b73}
-.section-btn .dot{width:10px;height:10px;border-radius:50%;background:#3a3a3a;border:2px solid #0f1420}
-.section-btn[aria-pressed="true"]{background:rgba(78,161,255,.12);border-color:var(--accent)}
-.section-btn[aria-pressed="true"] .dot{background:var(--accent);box-shadow:0 0 0 0 rgba(78,161,255,.6);animation:dotpulse 1.6s infinite}
-.section-btn .lbl{font-size:13px;font-weight:600}
-.section-btn .sub{font-size:11px;color:var(--muted);margin-left:4px}
-.section-btn[aria-pressed="true"] .lbl{color:#cfe3ff}
-.section-btn[aria-pressed="true"] .sub{color:#9fc8ff}
+.section-trigger:hover{border-color:#3e4b73;background:linear-gradient(180deg,#1d2540,#162038)}
+.section-trigger:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(78,161,255,.18)}
+.section-trigger[aria-expanded="true"]{border-color:var(--accent);box-shadow:0 0 0 3px rgba(78,161,255,.15)}
+
+.section-icon{
+  width:30px;height:30px;display:grid;place-items:center;border-radius:8px;
+  background:rgba(78,161,255,.10);color:#9fc8ff;border:1px solid rgba(78,161,255,.25);flex:none
+}
+.section-text{display:flex;flex-direction:column;align-items:flex-start;gap:1px;flex:1;min-width:0}
+.section-overline{font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);font-weight:600}
+.section-name{font-size:13.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px}
+.section-caret{color:var(--muted);transition:transform .18s}
+.section-trigger[aria-expanded="true"] .section-caret{transform:rotate(180deg);color:var(--accent)}
+
+/* Selected (section is currently chosen) */
+.section-trigger.selected{
+  background:linear-gradient(180deg,#1c2742,#162038);
+  border-color:rgba(78,161,255,.45);
+  box-shadow:0 0 0 1px rgba(78,161,255,.15) inset
+}
+.section-trigger.selected .section-icon{background:rgba(78,161,255,.22);color:#cfe3ff;border-color:rgba(78,161,255,.55)}
+.section-trigger.selected .section-name{color:#e9f1ff}
+.section-trigger.selected .section-overline{color:#9fc8ff}
+.section-trigger.selected .section-name:after{
+  content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-left:8px;vertical-align:middle;
+  box-shadow:0 0 0 0 rgba(78,161,255,.6);animation:dotpulse 1.6s infinite
+}
+
+/* Dropdown menu */
+.section-menu{
+  position:absolute;top:calc(100% + 8px);left:0;min-width:300px;
+  background:#141a2a;border:1px solid var(--line);border-radius:12px;
+  box-shadow:0 16px 40px rgba(0,0,0,.5),0 0 0 1px rgba(0,0,0,.2);
+  z-index:60;padding:6px;overflow:hidden;
+  animation:menuIn .15s ease-out
+}
+@keyframes menuIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.section-menu-head{padding:8px 10px 6px;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:600}
+.section-option{
+  width:100%;display:flex;align-items:center;gap:12px;padding:10px;border:0;
+  background:transparent;color:var(--text);cursor:pointer;border-radius:8px;text-align:left;
+  transition:background .12s
+}
+.section-option:hover{background:rgba(78,161,255,.10)}
+.section-option .opt-icon{
+  width:38px;height:38px;display:grid;place-items:center;border-radius:9px;
+  background:rgba(78,161,255,.12);color:#9fc8ff;border:1px solid rgba(78,161,255,.25);flex:none
+}
+.section-option .opt-body{flex:1;min-width:0}
+.section-option .opt-title{font-size:13.5px;font-weight:600}
+.section-option .opt-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.section-option .opt-state{
+  width:18px;height:18px;border-radius:50%;border:1.5px solid #3e4b73;flex:none;display:grid;place-items:center
+}
+.section-option.selected .opt-state{
+  border-color:var(--accent);background:var(--accent);
+  background-image:linear-gradient(135deg,#5cb1ff,#7c5cff)
+}
+.section-option.selected .opt-state:after{content:"✓";color:#fff;font-size:11px;font-weight:700;line-height:1}
+.section-option.selected{background:rgba(78,161,255,.08)}
+
+@keyframes dotpulse{0%{box-shadow:0 0 0 0 rgba(78,161,255,.6)}70%{box-shadow:0 0 0 8px rgba(78,161,255,0)}100%{box-shadow:0 0 0 0 rgba(78,161,255,0)}}
 
 .master.disabled{opacity:.55;cursor:not-allowed}
 .master.disabled .switch input{pointer-events:none}
@@ -211,6 +267,21 @@ select{background:#0f1626;color:var(--text);border:1px solid var(--line);padding
 .layout-svg .lay-blower, .layout-svg .lay-valve, .layout-svg .lay-sub-pmp{cursor:pointer}
 .layout-svg .lay-blower:hover .fan circle,
 .layout-svg .lay-valve:hover .valve-body{filter:brightness(1.15)}
+
+/* Clickable SBR_TANK affordance */
+.layout-svg .lay-sbr-tank.clickable-tank{cursor:pointer}
+.layout-svg .lay-sbr-tank.clickable-tank:hover .tank-wall{stroke:#7c5cff;stroke-width:4}
+.layout-svg .peek-layer{opacity:0;transition:opacity .25s ease}
+.layout-svg .lay-sbr-tank.clickable-tank:hover .peek-layer{opacity:1}
+.layout-svg .inspect-badge{animation:badgePulse 2s ease-in-out infinite}
+.layout-svg .lay-sbr-tank.clickable-tank:hover .inspect-badge{animation:none;filter:brightness(1.2)}
+@keyframes badgePulse{0%,100%{opacity:.85}50%{opacity:1;filter:drop-shadow(0 0 6px rgba(124,92,255,.5))}}
+@keyframes tankBubble{
+  0%{transform:translateY(0) scale(.6);opacity:0}
+  10%{opacity:.85}
+  90%{opacity:.6}
+  100%{transform:translateY(-280px) scale(1.1);opacity:0}
+}
 .view-viz.remote .scada-wrap{box-shadow:inset 0 0 0 3px rgba(124,92,255,.5)}
 
 /* SCADA elements use light SCADA palette inside SVG; HTML overlays sit on top */
@@ -281,9 +352,8 @@ select{background:#0f1626;color:var(--text);border:1px solid var(--line);padding
 .tank-expand-btn:hover{background:#fff}
 @keyframes dotpulse{0%{box-shadow:0 0 0 0 rgba(78,161,255,.6)}70%{box-shadow:0 0 0 8px rgba(78,161,255,0)}100%{box-shadow:0 0 0 0 rgba(78,161,255,0)}}
 
-/* Position the two expand buttons (computed against SVG aspect) */
-#tankExpand1{left:50%;top:32%;transform:translate(-50%,-50%)}
-#tankExpand2{left:50%;top:73%;transform:translate(-50%,-50%)}
+/* Plant Layout uses on-tank SVG affordance; hide the legacy HTML expand pills */
+#tankExpand1, #tankExpand2{display:none}
 
 .tank-drawer{
   position:absolute;left:50%;transform:translateX(-50%);width:min(720px,90%);

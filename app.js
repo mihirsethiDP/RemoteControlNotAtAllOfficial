@@ -174,10 +174,10 @@ function elGroup(c, klass) {
 }
 
 function drawSbrTank(c) {
-  const g = elGroup(c, "lay-sbr-tank");
+  const g = elGroup(c, "lay-sbr-tank clickable-tank");
   const w = c.size.width, h = c.size.height;
   // tank wall
-  g.appendChild(svgEl("rect", { x:0, y:0, width:w, height:h, fill:"#9ec6f5", stroke:"#23344e", "stroke-width":3 }));
+  g.appendChild(svgEl("rect", { x:0, y:0, width:w, height:h, fill:"#9ec6f5", stroke:"#23344e", "stroke-width":3, class:"tank-wall" }));
   // water with level (level = % from JSON)
   const lvl = (c.level ?? 60) / 100;
   const wh = h * lvl;
@@ -185,14 +185,81 @@ function drawSbrTank(c) {
   g.appendChild(svgEl("rect", { x:2, y:h-wh, width:w-4, height:6, fill:"#cfe6ff", opacity:.6 }));
   // diffuser bar at floor (Zone-3)
   g.appendChild(svgEl("rect", { x:20, y:h-22, width:w-40, height:6, fill:"#5a3aae" }));
-  // bubble dots
+  // floor bubble row
   for (let i=0;i<14;i++){
     g.appendChild(svgEl("circle", { cx:30+i*((w-60)/13), cy:h-30-((i%3)*8), r:3, fill:"#7c5cff", opacity:.7 }));
   }
+
+  // === RISING BUBBLES (constant motion = "alive" tank) ===
+  const bubbles = svgEl("g", { class: "tank-bubbles" });
+  for (let i=0;i<10;i++){
+    const bx = w*(0.55) + (i%4) * (w*0.10);
+    const delay = (i * 0.45).toFixed(2);
+    const b = svgEl("circle", { cx:bx, cy:h-20, r: 2 + (i%3), fill:"#9ad0ff", opacity:0 });
+    b.style.animation = `tankBubble 3.6s ${delay}s linear infinite`;
+    b.style.transformOrigin = `${bx}px ${h-20}px`;
+    b.style.transformBox = "fill-box";
+    bubbles.appendChild(b);
+  }
+  g.appendChild(bubbles);
+
+  // === PEEK / X-RAY LAYER (revealed on hover) ===
+  const peek = svgEl("g", { class: "peek-layer" });
+  // Dashed cutaway "window" on the right (Zone-3 area where pumps live)
+  const px0 = w*0.50, py0 = h*0.42, pw = w*0.45, ph = h*0.48;
+  peek.appendChild(svgEl("rect", { x:px0, y:py0, width:pw, height:ph, rx:10, fill:"rgba(15,20,32,.18)", stroke:"#7c5cff", "stroke-dasharray":"7 5", "stroke-width":2.5 }));
+  // 4 ghost pump silhouettes
+  for (let i=0;i<4;i++){
+    const cx = px0 + pw * (0.18 + i*0.22);
+    const cy = py0 + ph * 0.55;
+    const pgh = svgEl("g");
+    pgh.appendChild(svgEl("circle", { cx, cy, r: 18, fill:"rgba(255,255,255,.45)", stroke:"#7c5cff", "stroke-width":1.5 }));
+    pgh.appendChild(svgEl("circle", { cx, cy, r: 9, fill:"#7c5cff", opacity:.55 }));
+    // mini blades
+    const blades = svgEl("g");
+    blades.setAttribute("transform", `translate(${cx},${cy})`);
+    blades.style.transformOrigin = "0 0";
+    blades.style.animation = `spin 1.6s linear infinite`;
+    for (let b=0;b<3;b++){
+      const blade = svgEl("path", { d: "M0,-8 L3,-1 L-3,-1 Z", fill:"#fff" });
+      blade.setAttribute("transform", `rotate(${b*120})`);
+      blades.appendChild(blade);
+    }
+    pgh.appendChild(blades);
+    peek.appendChild(pgh);
+  }
+  // little "viewfinder" corner brackets
+  const cornerLen = 14;
+  [[px0,py0,1,1],[px0+pw,py0,-1,1],[px0,py0+ph,1,-1],[px0+pw,py0+ph,-1,-1]].forEach(([x,y,sx,sy]) => {
+    peek.appendChild(svgEl("path", { d: `M ${x} ${y+sy*cornerLen} L ${x} ${y} L ${x+sx*cornerLen} ${y}`, stroke:"#7c5cff", "stroke-width":3, fill:"none", "stroke-linecap":"round" }));
+  });
+  g.appendChild(peek);
+
+  // === MAGNIFYING-LENS BADGE (always visible, pulses) ===
+  const badge = svgEl("g", { class: "inspect-badge" });
+  const badgeY = h - 36;
+  badge.appendChild(svgEl("rect", { x: 14, y: badgeY, width: 230, height: 28, rx: 14, fill: "#0d2240", stroke:"#7c5cff", "stroke-width":1.5 }));
+  badge.appendChild(svgEl("circle", { cx: 30, cy: badgeY+14, r: 7, fill:"none", stroke:"#cfe3ff", "stroke-width":1.8 }));
+  badge.appendChild(svgEl("line", { x1: 35, y1: badgeY+19, x2: 41, y2: badgeY+25, stroke:"#cfe3ff", "stroke-width":1.8, "stroke-linecap":"round" }));
+  const blbl = svgEl("text", { x: 50, y: badgeY+18, "font-size": 12, fill: "#cfe3ff", "font-weight":"600" });
+  blbl.textContent = "Inspect · 4 pumps nested inside";
+  badge.appendChild(blbl);
+  // tiny "click" hint chevron
+  const chev = svgEl("text", { x: 230, y: badgeY+18, "font-size": 12, fill:"#9fc8ff" });
+  chev.textContent = "›";
+  badge.appendChild(chev);
+  g.appendChild(badge);
+
   // label
   const t = svgEl("text", { x:w/2, y:24, "text-anchor":"middle", "font-size":18, fill:"#0d2240", "font-weight":"700" });
   t.textContent = c.attrs?.label?.text || "";
   g.appendChild(t);
+
+  // === Click handler -> drill in ===
+  const tanks = LAYOUT.elements.filter(x => x.type === "SBR_TANK").sort((a,b)=>a.position.y-b.position.y);
+  const basinId = tanks[0]?.id === c.id ? "BASIN1" : "BASIN2";
+  g.addEventListener("click", e => { e.stopPropagation(); toggleTankExpand(basinId); });
+
   return g;
 }
 
@@ -665,15 +732,16 @@ function applySectionSelectionVisuals() {
   const masterInput = $("#masterRemote");
   masterWrap?.classList.toggle("disabled", !isSel && !remoteActive);
   if (masterInput) masterInput.disabled = !isSel && !remoteActive;
-  // Section button state
-  const btn = $("#sectionBtn");
-  if (btn) {
-    btn.setAttribute("aria-pressed", isSel ? "true" : "false");
-    btn.querySelector(".lbl").textContent = isSel ? "SBR Aeration" : "Select section";
-    $("#sectionBtnSub").textContent = isSel
-      ? `${Object.keys(DEVICES).length} equipment · click to deselect`
-      : "Master toggle is disabled";
+  // Section trigger state
+  const trigger = $("#sectionBtn");
+  if (trigger) {
+    trigger.classList.toggle("selected", isSel);
+    $("#sectionName").textContent = isSel ? "SBR Cycle" : "None selected";
   }
+  // Selected option in menu
+  document.querySelectorAll(".section-option").forEach(o => {
+    o.classList.toggle("selected", isSel && o.dataset.section === "sbr");
+  });
   // Plant layout SVG frame
   drawSectionFrame(isSel);
 }
@@ -686,7 +754,7 @@ function drawSectionFrame(isSel) {
   if (!frame) {
     frame = document.createElement("div");
     frame.className = "section-frame";
-    frame.innerHTML = `<span class="frame-tag">Section · SBR Aeration</span>`;
+    frame.innerHTML = `<span class="frame-tag">Section · SBR Cycle</span>`;
     wrap.appendChild(frame);
   }
   frame.classList.toggle("remote", remoteActive);
@@ -711,15 +779,23 @@ function drawSectionFrame(isSel) {
   frame.style.height = (b - t + pad*2) + "px";
 }
 
-function toggleSectionSelection() {
-  // Cannot deselect while remote is engaged
-  if (remoteActive) {
+function selectSection(name) {
+  // name: 'sbr' or null
+  if (remoteActive && selectedSection !== name) {
     toast("Release remote control before changing section selection.", "warn");
     return;
   }
-  selectedSection = selectedSection === "sbr" ? null : "sbr";
+  selectedSection = name;
   applySectionSelectionVisuals();
-  toast(selectedSection ? "Section SBR Aeration selected. Master remote enabled." : "Section deselected.", "ok");
+  toast(name ? "SBR Cycle selected · master remote enabled" : "Section deselected", "ok");
+}
+
+function setMenuOpen(open) {
+  const trigger = $("#sectionBtn");
+  const menu = $("#sectionMenu");
+  if (!trigger || !menu) return;
+  trigger.setAttribute("aria-expanded", open ? "true" : "false");
+  menu.classList.toggle("hidden", !open);
 }
 
 // ---------- Toggle attempt ----------
@@ -855,7 +931,26 @@ function setView(name) {
 // ---------- Wire up ----------
 document.addEventListener("DOMContentLoaded", () => {
   $$(".tab").forEach(t => t.addEventListener("click", () => setView(t.dataset.view)));
-  $("#sectionBtn")?.addEventListener("click", toggleSectionSelection);
+  // Section picker: trigger toggles menu
+  $("#sectionBtn")?.addEventListener("click", e => {
+    e.stopPropagation();
+    const open = $("#sectionBtn").getAttribute("aria-expanded") === "true";
+    setMenuOpen(!open);
+  });
+  // Menu options
+  document.querySelectorAll(".section-option").forEach(opt => {
+    opt.addEventListener("click", e => {
+      e.stopPropagation();
+      const sec = opt.dataset.section;
+      selectSection(selectedSection === sec ? null : sec);
+      setMenuOpen(false);
+    });
+  });
+  // Click outside closes menu
+  document.addEventListener("click", e => {
+    if (!e.target.closest(".section-picker")) setMenuOpen(false);
+  });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") setMenuOpen(false); });
 
   // Engineering tank disclosure
   $$(".disclosure-btn").forEach(b => b.addEventListener("click", () => toggleTankExpand(b.dataset.tank)));
