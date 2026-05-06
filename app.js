@@ -653,9 +653,34 @@ function drawDecanterSvg(g, on) {
   g.appendChild(lbl);
 }
 
+// Layout is heavy — render the SVG ONCE, then patch individual cells when state changes.
+let LAYOUT_RENDERED = false;
 function renderScada() {
-  // Re-render the JSON-driven layout so device on/off state propagates
+  if (LAYOUT_RENDERED) {
+    positionOverlays();
+    return;
+  }
   renderLayout();
+  LAYOUT_RENDERED = true;
+}
+
+// Surgically replace just the cells belonging to one device, preserving section/highlight classes.
+function updateDeviceCells(devId) {
+  if (!LAYOUT) return;
+  for (const c of LAYOUT.elements) {
+    if (cellDeviceId(c) !== devId) continue;
+    const oldNode = document.querySelector(`#layoutHost g[data-cell-id="${c.id}"]`);
+    if (!oldNode) continue;
+    const drawer = TYPE_DRAWERS[c.type];
+    if (!drawer) continue;
+    const newNode = drawer(c);
+    // Preserve transient classes from the old node
+    ["in-section","out-section","acted-on","staged","preview-hover"].forEach(k => {
+      if (oldNode.classList.contains(k)) newNode.classList.add(k);
+    });
+    if (!c.position) {} // no-op
+    oldNode.replaceWith(newNode);
+  }
 }
 
 // ---------- HTML overlay controls anchored over SVG devices ----------
@@ -891,15 +916,52 @@ function setMenuOpen(open) {
   menu.classList.toggle("hidden", !open);
 }
 
-// ---------- Toggle attempt ----------
+// ---------- Toggle attempt (partial update — does NOT rebuild the SVG) ----------
 function attemptToggle(id, nextOn, hostEl) {
   const d = DEVICES[id];
   if (d.mode !== "remote") return;
   const block = checkInterlock(id, nextOn);
-  if (block) { showInterlock(hostEl, block); renderAll(); return; }
+  if (block) {
+    showInterlock(hostEl, block);
+    // Re-sync just the affected mini-controls (engineering view + overlay)
+    syncEngineeringDevice(id);
+    return;
+  }
   d.on = nextOn;
   toast(`${d.name} → ${nextOn ? "ON" : "OFF"}`, "ok");
-  renderAll();
+  applyPartialDeviceUpdate(id);
+  // brief "acted" pulse on the corresponding layout cell
+  highlightCellForDevice(id, "acted");
+  setTimeout(() => highlightCellForDevice(id, "off"), 1800);
+}
+
+// Patch every place a device appears (engineering, overlay, command panel, layout cells)
+function applyPartialDeviceUpdate(id) {
+  syncEngineeringDevice(id);    // Engineering View card
+  positionOverlays();           // SCADA HTML overlays (one per device)
+  updateDeviceCells(id);        // SVG cells in the layout
+  updateCmdRow(id);             // Command panel row
+  updateMasterStatus();         // mode pill + timer chip
+}
+
+function syncEngineeringDevice(id) {
+  const card = document.querySelector(`#view-engineering .device[data-id="${id}"]`);
+  if (card) renderEngDevice(card);
+  // Also update mini-device inside basin drawer if open
+  const mini = document.querySelector(`.tank-internals .mini-device[data-id="${id}"], #vizDrawer1 .mini-device[data-id="${id}"], #vizDrawer2 .mini-device[data-id="${id}"]`);
+  if (mini) {
+    const d = DEVICES[id];
+    mini.classList.toggle("on", d.on);
+    const inp = mini.querySelector("input[type=checkbox]");
+    if (inp) { inp.checked = d.on; inp.disabled = d.mode !== "remote"; }
+  }
+}
+
+function updateMasterStatus() {
+  $("#masterMode").classList.toggle("remote", remoteActive);
+  $("#masterMode").classList.toggle("local", !remoteActive);
+  $("#masterMode").textContent = remoteActive ? "REMOTE" : "LOCAL (PLC)";
+  $("#masterRemote").checked = remoteActive;
 }
 
 function showInterlock(hostEl, msg) {
@@ -1220,12 +1282,15 @@ function renderCmdPanel() {
       row.querySelector(".cmd-check").addEventListener("click", e => {
         e.stopPropagation();
         if (id in stagedCommands) delete stagedCommands[id];
-        else stagedCommands[id] = !d.on; // stage flip
-        renderCmdPanel(); refreshLayoutHighlights();
+        else stagedCommands[id] = !d.on;
+        updateCmdRow(id);
+        refreshLayoutHighlights();
       });
-      // hover row → highlight cell briefly
+      // hover row → live preview highlight on the layout
       row.addEventListener("mouseenter", () => highlightCellForDevice(id, "preview"));
       row.addEventListener("mouseleave", () => highlightCellForDevice(id, "off"));
+      row.addEventListener("focus", () => highlightCellForDevice(id, "preview"));
+      row.addEventListener("blur",  () => highlightCellForDevice(id, "off"));
     }
   }
   // Footer state
@@ -1240,30 +1305,56 @@ function attemptToggleFromList(id, nextOn, rowEl) {
   const d = DEVICES[id];
   if (d.mode !== "remote") { toast("Engage remote first", "warn"); return; }
   const block = checkInterlock(id, nextOn);
-  if (block) { toast(block, "bad"); renderCmdPanel(); return; }
+  if (block) {
+    toast(block, "bad");
+    updateCmdRow(id);
+    return;
+  }
   d.on = nextOn;
-  highlightCellForDevice(id, "acted");
   toast(`${d.name} → ${nextOn?"ON":"OFF"}`, "ok");
-  renderAll();
-  renderCmdPanel();
-  // fade highlight after 2s
+  applyPartialDeviceUpdate(id);
+  highlightCellForDevice(id, "acted");
   setTimeout(() => highlightCellForDevice(id, "off"), 2200);
+}
+
+function updateCmdRow(id) {
+  const row = document.querySelector(`.cmd-row[data-id="${id}"]`);
+  if (!row) return;
+  const d = DEVICES[id];
+  const isStaged = id in stagedCommands;
+  row.classList.toggle("on-now", d.on);
+  row.classList.toggle("staged", isStaged);
+  const state = row.querySelector(".cmd-state");
+  state.className = "cmd-state" + (d.on?" on":"") + (isStaged?" staged":"");
+  state.textContent = isStaged ? (stagedCommands[id]?"→ ON":"→ OFF") : (d.on?"ON":"OFF");
+  const inp = row.querySelector("input[type=checkbox]");
+  if (inp) inp.checked = d.on;
+  row.querySelector(".cmd-check").classList.toggle("on", isStaged);
+  updateCmdFooter();
+}
+function updateCmdFooter() {
+  const n = Object.keys(stagedCommands).length;
+  const stEl = document.getElementById("cmdStaged"); if (stEl) stEl.textContent = `${n} staged`;
+  const apply = document.getElementById("cmdApplyStaged");
+  if (apply) { apply.textContent = `Apply ${n} command${n===1?"":"s"}`; apply.disabled = n === 0; }
 }
 
 function applyStagedCommands() {
   const ids = Object.keys(stagedCommands);
   if (!ids.length) return;
   let okN = 0, blocked = [];
+  const acted = [];
   for (const id of ids) {
     const next = stagedCommands[id];
     const block = checkInterlock(id, next);
     if (block) { blocked.push(`${DEVICES[id].name}: ${block}`); continue; }
-    DEVICES[id].on = next; okN++;
-    highlightCellForDevice(id, "acted");
+    DEVICES[id].on = next; okN++; acted.push(id);
   }
   stagedCommands = {};
-  renderAll(); renderCmdPanel();
-  setTimeout(() => document.querySelectorAll("g[data-cell-id].acted-on").forEach(n => n.classList.remove("acted-on")), 2400);
+  // Partial updates only — do not rebuild the SVG
+  for (const id of acted) { applyPartialDeviceUpdate(id); highlightCellForDevice(id, "acted"); }
+  // Clear acted glow after a moment
+  setTimeout(() => acted.forEach(id => highlightCellForDevice(id, "off")), 2400);
   toast(`Applied ${okN} command${okN===1?"":"s"}${blocked.length?` · ${blocked.length} blocked`:""}`, blocked.length ? "warn" : "ok");
 }
 
@@ -1286,8 +1377,11 @@ function forEachCellNodeForDevice(devId, fn) {
 }
 
 function highlightCellForDevice(devId, mode) {
+  // mode: "preview" (live hover, blue), "acted" (committed, green pulse), "off" (clear)
   forEachCellNodeForDevice(devId, n => {
-    n.classList.toggle("acted-on", mode === "acted" || mode === "preview");
+    n.classList.remove("preview-hover","acted-on");
+    if (mode === "preview") n.classList.add("preview-hover");
+    else if (mode === "acted") n.classList.add("acted-on");
   });
 }
 
@@ -1319,7 +1413,7 @@ function setView(name) {
   $("#view-engineering").classList.toggle("hidden", name !== "engineering");
   $("#view-viz").classList.toggle("hidden", name !== "viz");
   if (name === "viz") {
-    requestAnimationFrame(() => { renderLayout(); positionOverlays(); });
+    requestAnimationFrame(() => { renderScada(); positionOverlays(); });
   }
 }
 

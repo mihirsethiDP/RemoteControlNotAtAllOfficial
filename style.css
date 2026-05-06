@@ -315,10 +315,28 @@ select{background:#0f1626;color:var(--text);border:1px solid var(--line);padding
 .layout-svg.dim-mode g[data-cell-id].in-section{transition:filter .35s}
 .layout-svg.dim-mode .layer-pipes .lay-pipe.in-section{transition:filter .35s}
 
-/* Equipment "acted upon" highlight (driven from list-view actions) */
+/* Live HOVER preview from command list — strong cyan ring + bouncy scale */
+.layout-svg g[data-cell-id].preview-hover{
+  filter:drop-shadow(0 0 14px rgba(124,180,255,.95)) drop-shadow(0 0 28px rgba(124,180,255,.55));
+  opacity:1 !important;
+  animation:previewPulse .9s ease-in-out infinite
+}
+.layout-svg g[data-cell-id].preview-hover rect:not(.tank-water):not(.peek-layer rect),
+.layout-svg g[data-cell-id].preview-hover circle{stroke:#7cc4ff !important;stroke-width:2.5 !important}
+.layout-svg.dim-mode g[data-cell-id].preview-hover{opacity:1 !important;filter:drop-shadow(0 0 14px rgba(124,180,255,.95)) drop-shadow(0 0 28px rgba(124,180,255,.55))}
+@keyframes previewPulse{
+  0%,100%{filter:drop-shadow(0 0 10px rgba(124,180,255,.7)) drop-shadow(0 0 22px rgba(124,180,255,.4))}
+  50%   {filter:drop-shadow(0 0 18px rgba(124,180,255,1))   drop-shadow(0 0 36px rgba(124,180,255,.7))}
+}
+
+/* Committed action — green */
 .layout-svg g[data-cell-id].acted-on{filter:drop-shadow(0 0 10px rgba(34,197,94,.65));animation:actedPulse 1.4s ease-in-out infinite}
+.layout-svg.dim-mode g[data-cell-id].acted-on{opacity:1 !important}
 @keyframes actedPulse{0%,100%{filter:drop-shadow(0 0 6px rgba(34,197,94,.4))}50%{filter:drop-shadow(0 0 14px rgba(34,197,94,.85))}}
+
+/* Staged but not yet applied — amber */
 .layout-svg g[data-cell-id].staged{filter:drop-shadow(0 0 8px rgba(245,158,11,.7))}
+.layout-svg.dim-mode g[data-cell-id].staged{opacity:1 !important}
 
 /* Blower (screenshot-inspired): box + LED indicator + airflow lines emerging */
 .layout-svg .lay-blower .blower-led{transition:fill .2s}
