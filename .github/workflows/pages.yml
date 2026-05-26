@@ -16,21 +16,28 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Clone repo and publish to gh-pages
+      - name: Clone main and publish to gh-pages via git
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -e
-          # Use pure git — no marketplace actions, nothing to download.
-          git clone --depth 1 https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git work
+          set -euxo pipefail
+          echo "Cloning repo…"
+          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" work
           cd work
           git config user.email "actions@github.com"
-          git config user.name "GitHub Actions"
-          # Build a fresh gh-pages with just the static site contents.
+          git config user.name  "GitHub Actions"
+          echo "Files at HEAD:"
+          ls -la
+          echo "Building gh-pages tree…"
+          # Wipe git history info but keep working tree
           git checkout --orphan gh-pages
+          # Drop CI / huge files from the published tree
           rm -rf .github || true
           rm -f assets/plant.json || true
           touch .nojekyll
           git add -A
+          git status --short | head
           git commit -m "Deploy ${GITHUB_SHA}"
+          echo "Pushing gh-pages…"
           git push -f origin gh-pages
+          echo "Done."
