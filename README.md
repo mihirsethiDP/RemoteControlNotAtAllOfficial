@@ -1,4 +1,8 @@
-# Remote Control — SBR Aeration Prototype
+# Remote Control — Adani Mumbai
+
+Digital Paani · Remote Control + Set Points prototype.
+
+
 
 Prototype for remote control of plant equipment, focused on the SBR Aeration group of the Adani Mumbai layout.
 
