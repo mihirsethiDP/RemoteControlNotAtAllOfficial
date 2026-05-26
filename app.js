@@ -411,11 +411,10 @@ function renderTankInternals(tankId){
 function attemptToggle(id, nextOn) {
   const d = DEVICES[id];
   const block = checkInterlock(id, nextOn);
-  if (block) { toast(block, "bad"); refreshEquipmentRow(id); return; }
+  if (block) { toast(block, "bad"); return; }
   d.on = nextOn;
   toast(`${d.name} → ${nextOn?"ON":"OFF"}`, "ok");
   updateDeviceCells(id);
-  refreshEquipmentRow(id);
   // Pulse the layout cell
   document.querySelectorAll(`#layoutHost g[data-cell-id]`).forEach(n => {
     const cell = LAYOUT?.idx[n.dataset.cellId];
@@ -436,8 +435,6 @@ function openGroupPanel() {
 function closeGroupPanel() {
   document.getElementById("groupPanel").classList.add("hidden");
   document.getElementById("dpMain").classList.remove("side-open");
-  // also close equipment drawer if open
-  closeEqDrawer();
 }
 function renderEquipmentList() {
   const list = document.getElementById("equipList");
@@ -446,30 +443,87 @@ function renderEquipmentList() {
   const ids = Object.keys(DEVICES);
   document.getElementById("equipCountPill").textContent = `${ids.length} equipments`;
   document.getElementById("groupCount").textContent = ids.length;
-  for (const id of ids) {
-    const d = DEVICES[id];
-    const row = document.createElement("div");
-    row.className = "dp-equip-row" + (d.on?" on-now":"");
-    row.dataset.id = id;
-    row.innerHTML = `
+  for (const id of ids) renderEquipmentRow(list, id);
+}
+
+function renderEquipmentRow(list, id) {
+  const d = DEVICES[id];
+  const wrap = document.createElement("div");
+  wrap.className = "dp-equip-wrap" + (d.on?" on-now":"");
+  wrap.dataset.id = id;
+  wrap.innerHTML = `
+    <div class="dp-equip-row">
       <div class="eq-icon-tile">${iconFor(d.type)}</div>
       <div class="eq-meta">
         <div class="name">${d.name}</div>
         <span class="type-pill">${d.type.toUpperCase()}</span>
         <div class="status-line">STATUS: <b class="${d.on?'on':'off'}">${d.on?'On':'Off'}</b></div>
       </div>
-      <button class="eq-control-btn">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-        Control
-      </button>`;
-    // Open the equipment drawer (child-level set points + on/off) on click
-    row.addEventListener("click", () => openEqDrawer(id));
-    row.querySelector(".eq-control-btn").addEventListener("click", e => { e.stopPropagation(); openEqDrawer(id); });
-    // Hover preview on the layout
-    row.addEventListener("mouseenter", () => highlightDevice(id, true));
-    row.addEventListener("mouseleave", () => highlightDevice(id, false));
-    list.appendChild(row);
+      <span class="eq-chev" aria-hidden="true">▾</span>
+    </div>
+    <div class="dp-equip-expand"></div>
+  `;
+  wrap.querySelector(".dp-equip-row").addEventListener("click", () => toggleEquipmentRow(wrap, id));
+  wrap.addEventListener("mouseenter", () => highlightDevice(id, true));
+  wrap.addEventListener("mouseleave", () => highlightDevice(id, false));
+  list.appendChild(wrap);
+}
+
+// Only one row expanded at a time
+function toggleEquipmentRow(wrap, id) {
+  const isOpen = wrap.classList.contains("expanded");
+  document.querySelectorAll(".dp-equip-wrap.expanded").forEach(w => { w.classList.remove("expanded"); w.querySelector(".dp-equip-expand").innerHTML = ""; });
+  if (isOpen) return;
+  wrap.classList.add("expanded");
+  renderEquipmentExpansion(wrap, id);
+}
+
+function renderEquipmentExpansion(wrap, id) {
+  const d = DEVICES[id];
+  const host = wrap.querySelector(".dp-equip-expand");
+
+  // On/Off + mode
+  const ctl = document.createElement("div");
+  ctl.className = "exp-ctl";
+  ctl.innerHTML = `
+    <div class="exp-ctl-row">
+      <span class="eq-mode-pill ${d.mode==='remote'?'remote':'local'}">${d.mode==='remote'?'REMOTE':'LOCAL (PLC)'}</span>
+      <div class="exp-onoff">
+        <button class="seg ${d.on?'active on':''}" data-act="on">▶ ON</button>
+        <button class="seg ${!d.on?'active off':''}" data-act="off">■ OFF</button>
+      </div>
+    </div>`;
+  host.appendChild(ctl);
+  ctl.querySelector('[data-act="on"]').addEventListener("click", e => { e.stopPropagation(); attemptToggle(id, true); refreshRowAfterToggle(wrap, id); });
+  ctl.querySelector('[data-act="off"]').addEventListener("click", e => { e.stopPropagation(); attemptToggle(id, false); refreshRowAfterToggle(wrap, id); });
+
+  // Set points linked to this equipment
+  const linked = (window.SETPOINTS||[]).filter(sp => sp.targets?.includes(id));
+  const h = document.createElement("div");
+  h.className = "exp-sp-head";
+  h.textContent = linked.length
+    ? `LINKED SET POINTS · ${linked.length}`
+    : "LINKED SET POINTS";
+  host.appendChild(h);
+  if (linked.length) {
+    for (const sp of linked) host.appendChild(renderSetpointCard(sp, true));
+  } else {
+    const empty = document.createElement("div");
+    empty.className = "exp-empty";
+    empty.textContent = "No set points linked to this equipment.";
+    host.appendChild(empty);
   }
+}
+
+function refreshRowAfterToggle(wrap, id) {
+  const d = DEVICES[id];
+  wrap.classList.toggle("on-now", d.on);
+  const statusLine = wrap.querySelector(".status-line");
+  if (statusLine) statusLine.innerHTML = `STATUS: <b class="${d.on?'on':'off'}">${d.on?'On':'Off'}</b>`;
+  const onSeg  = wrap.querySelector('[data-act="on"]');
+  const offSeg = wrap.querySelector('[data-act="off"]');
+  if (onSeg)  onSeg.className  = `seg ${d.on ? "active on" : ""}`;
+  if (offSeg) offSeg.className = `seg ${!d.on ? "active off" : ""}`;
 }
 function refreshEquipmentRow(id) {
   const row = document.querySelector(`.dp-equip-row[data-id="${id}"]`);
@@ -498,68 +552,7 @@ function iconFor(type) {
 }
 
 // =====================================================================
-// Equipment Drawer (Child-level: set point edits)
-// =====================================================================
-function openEqDrawer(id) {
-  const d = DEVICES[id]; if (!d) return;
-  const drawer = document.getElementById("eqDrawer");
-  drawer.classList.remove("hidden");
-  drawer.dataset.id = id;
-  document.getElementById("dpMain").classList.add("drawer-open");
-  document.getElementById("eqTitle").textContent = d.name;
-  document.getElementById("eqMeta").innerHTML = `${d.type.toUpperCase()} · status <b>${d.on?'On':'Off'}</b> · mode <b>${d.mode.toUpperCase()}</b>`;
-  renderEqDrawerBody(id);
-  // pop highlight on the layout
-  highlightDevice(id, true);
-  setTimeout(() => highlightDevice(id, false), 1200);
-}
-function closeEqDrawer() {
-  document.getElementById("eqDrawer").classList.add("hidden");
-  document.getElementById("dpMain").classList.remove("drawer-open");
-}
-function renderEqDrawerBody(id) {
-  const d = DEVICES[id];
-  const body = document.getElementById("eqBody");
-  body.innerHTML = "";
-
-  // 1) Status & On/Off controls
-  const statusCard = document.createElement("div");
-  statusCard.className = "eq-status-card";
-  statusCard.innerHTML = `
-    <div class="eq-status-row">
-      <div>
-        <div class="dp-card-title" style="margin-bottom:4px">Live control</div>
-        <div class="dp-card-sub">Toggle ON/OFF · mode change requires Remote</div>
-      </div>
-      <span class="eq-mode-pill ${d.mode==='remote'?'remote':'local'}">${d.mode==='remote'?'REMOTE':'LOCAL (PLC)'}</span>
-    </div>
-    <div class="eq-onoff-bar">
-      <button class="seg ${d.on?'active on':''}" data-act="on">▶ ON</button>
-      <button class="seg ${!d.on?'active off':''}" data-act="off">■ OFF</button>
-    </div>
-  `;
-  body.appendChild(statusCard);
-  statusCard.querySelector('[data-act="on"]').addEventListener("click", () => { attemptToggle(id, true); openEqDrawer(id); });
-  statusCard.querySelector('[data-act="off"]').addEventListener("click", () => { attemptToggle(id, false); openEqDrawer(id); });
-
-  // 2) Set points linked to this equipment
-  const linkedSps = (window.SETPOINTS||[]).filter(sp => sp.targets?.includes(id) || sp.targets?.some(t => t===id));
-  if (linkedSps.length) {
-    const h = document.createElement("div");
-    h.style.cssText = "font-size:10.5px;letter-spacing:1.4px;color:var(--muted);font-weight:700;margin:6px 0 -2px";
-    h.textContent = "SET POINTS LINKED TO THIS EQUIPMENT";
-    body.appendChild(h);
-    for (const sp of linkedSps) body.appendChild(renderSetpointCard(sp, /*compact*/ true));
-  } else {
-    const noSp = document.createElement("div");
-    noSp.style.cssText = "padding:12px;background:var(--surface-2);border:1px dashed var(--line);border-radius:8px;font-size:12px;color:var(--muted);text-align:center";
-    noSp.textContent = "No set-points linked to this equipment.";
-    body.appendChild(noSp);
-  }
-}
-
-// =====================================================================
-// Set Point card renderer (used in drawer + All Set Points page)
+// Set Point card renderer (used inline + on All Set Points page)
 // =====================================================================
 function renderSetpointCard(sp, compact=false) {
   const card = document.createElement("div");
@@ -820,9 +813,6 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#openGroupControl")?.addEventListener("click", openGroupPanel);
   $("#closeGroupPanel")?.addEventListener("click", closeGroupPanel);
   $("#refreshStatus")?.addEventListener("click", () => toast("Status refreshed", "ok"));
-
-  // Equipment drawer
-  $("#closeEqDrawer")?.addEventListener("click", closeEqDrawer);
 
   // Set point notice modal
   $("#spNoticeCancel")?.addEventListener("click", () => { document.getElementById("spNotice").classList.add("hidden"); pendingSp = null; });

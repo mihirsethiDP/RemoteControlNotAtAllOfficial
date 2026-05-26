@@ -44,7 +44,6 @@
   </div>
   <div class="dp-page-actions">
     <a class="dp-btn ghost" href="../">← Back to plant</a>
-    <button class="dp-btn primary" id="addSp">+ New set point</button>
   </div>
 </div>
 
@@ -53,12 +52,9 @@
   <div class="cfg-info">
     <div class="cfg-info-icon">ℹ</div>
     <div>
-      <div class="cfg-info-title">What is a parent-level set point?</div>
+      <div class="cfg-info-title">Parent-level configuration</div>
       <div class="cfg-info-body">
-        Parent-level configuration controls whether a set point is <b>active</b>, the
-        <b>equipment it links to</b>, and the <b>allowed range</b> (min, max, safe min/max).
-        The actual numeric value (child level) is overridable from the plant view's equipment drawer
-        and the <a href="../">All Set Points</a> screen. PLC logic is never modified here.
+        Enable a set point and set its <b>allowed range</b> (min, max). Operators override the actual value from the <a href="../">plant view</a>. PLC logic is never modified here.
       </div>
     </div>
   </div>
@@ -92,20 +88,6 @@
 
 <!-- TOAST -->
 <div id="toast" class="toast hidden"></div>
-
-<!-- Set point edit notice (shared style) -->
-<div id="spNotice" class="modal hidden">
-  <div class="modal-card">
-    <div class="modal-icon warn">⚠</div>
-    <h2>Threshold change will affect linked equipment</h2>
-    <p class="muted" id="spNoticeBody">Updating the parent-level range will change which values are allowed at the child level. PLC logic is unchanged.</p>
-    <div class="sp-impact" id="spImpactList"></div>
-    <div class="modal-actions">
-      <button class="dp-btn ghost" id="spNoticeCancel">Cancel</button>
-      <button class="dp-btn primary" id="spNoticeConfirm">Save configuration</button>
-    </div>
-  </div>
-</div>
 
 <script src="../assets/setpoints.js"></script>
 <script src="configuration.js"></script>
