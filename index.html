@@ -3,189 +3,205 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Remote Control — SBR Cycle (Prototype)</title>
+<title>Adani Mumbai · Remote Control</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-<header class="topbar">
-  <div class="brand">
-    <span class="logo">◈</span>
-    <div>
-      <div class="title">Adani Mumbai · SBR Cycle</div>
-      <div class="sub">Remote Control Prototype</div>
-    </div>
-  </div>
-  <nav class="tabs">
-    <button class="tab active" data-view="engineering">Engineering View</button>
-    <button class="tab" data-view="viz">Plant Layout</button>
-  </nav>
-  <div class="topbar-right">
-    <div class="section-picker">
-      <button id="sectionBtn" class="section-trigger" aria-haspopup="listbox" aria-expanded="false">
-        <span class="section-icon" aria-hidden="true">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="5" width="18" height="14" rx="2"/>
-            <path d="M3 10h18"/><path d="M9 5v14"/>
-          </svg>
-        </span>
-        <span class="section-text">
-          <span class="section-overline">Section</span>
-          <span class="section-name" id="sectionName">None selected</span>
-        </span>
-        <span class="section-caret" aria-hidden="true">
-          <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2,3 L5,7 L8,3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </span>
-      </button>
-      <div class="section-menu hidden" id="sectionMenu" role="listbox">
-        <div class="section-menu-head">Select a section to control</div>
-        <div id="sectionMenuList"></div>
+
+<!-- ====================== TOP NAV ====================== -->
+<header class="dp-topnav">
+  <div class="dp-topnav-left">
+    <button class="dp-burger" aria-label="Menu">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+    <div class="dp-logo">
+      <svg class="dp-logo-mark" width="34" height="34" viewBox="0 0 40 40">
+        <path d="M20 4 C12 14, 6 22, 6 28 a14 14 0 0 0 28 0 c0 -6 -6 -14 -14 -24z" fill="#1e6dd9"/>
+        <path d="M20 4 C12 14, 6 22, 6 28 a14 14 0 0 0 28 0 c0 -6 -6 -14 -14 -24z" fill="none" stroke="#3d8eff" stroke-width="1"/>
+      </svg>
+      <div class="dp-logo-text">
+        <div class="t1">Digital</div>
+        <div class="t2">Paani</div>
       </div>
     </div>
-    <div id="timerChip" class="timer-chip hidden">
-      <span class="dot"></span><span id="timerLabel">--:--</span>
-      <button id="cancelRemote" class="link">Release</button>
-    </div>
-    <!-- Progressive disclosure: master remote is hidden until a section is selected -->
-    <div class="master hidden" id="masterPanel">
-      <span class="master-label">Plant Control</span>
-      <label class="switch big">
-        <input type="checkbox" id="masterRemote" />
-        <span class="slider"></span>
-      </label>
-      <span id="masterMode" class="mode-pill local">LOCAL (PLC)</span>
+  </div>
+  <div class="dp-topnav-right">
+    <button class="dp-icon-btn" aria-label="Notifications">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+      <span class="dp-badge">60</span>
+    </button>
+    <button class="dp-icon-btn" aria-label="Messages">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+      <span class="dp-badge red">99+</span>
+    </button>
+    <div class="dp-user">
+      <span class="dp-user-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></svg>
+      </span>
+      <span class="dp-user-name">Satyadev Singh</span>
     </div>
   </div>
 </header>
 
-<!-- ========================= ENGINEERING VIEW ========================= -->
-<main class="stage view-engineering" id="view-engineering">
-  <section class="group" data-group="sbr">
-    <div class="group-label">Group · SBR Cycle <span class="count" id="sbrCount">0 equipment</span></div>
+<!-- ====================== BREADCRUMB ====================== -->
+<nav class="dp-breadcrumb">
+  <a href="#">Adani Mumbai</a>
+  <span class="sep">›</span>
+  <a href="#">Adani Mumbai</a>
+</nav>
 
-    <div class="sbr-grid">
-      <div class="col valves">
-        <div class="device" data-id="SBR1_INLET"><div class="dev-icon valve">⛒</div><div class="dev-name">SBR-1 Inlet Valve</div><div class="dev-controls"></div></div>
-        <div class="device" data-id="SBR2_INLET"><div class="dev-icon valve">⛒</div><div class="dev-name">SBR-2 Inlet Valve</div><div class="dev-controls"></div></div>
+<!-- ====================== PAGE HEADER STRIP ====================== -->
+<div class="dp-page-strip">
+  <div class="dp-page-title">
+    <h1>Adani Mumbai</h1>
+    <span class="live-pill"><span class="dot"></span> LIVE</span>
+  </div>
+  <div class="dp-page-actions">
+    <div class="dp-datetime">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      <span id="hdrDate">May 26, 2026</span>
+      <span class="sep">|</span>
+      <span id="hdrTime">04:18 PM</span>
+    </div>
+    <button class="dp-play" aria-label="Play">▶</button>
+    <button class="dp-group-btn" id="openGroupControl">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9" stroke-dasharray="2 4"/></svg>
+      Group Control
+    </button>
+    <div class="dp-page-select">
+      <select id="pageSelect">
+        <option value="layout">Select Page...</option>
+        <option value="layout">Plant Layout</option>
+        <option value="setpoints">All Set Points</option>
+        <option value="config">Configuration (parent)</option>
+      </select>
+      <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2,3 L5,7 L8,3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+  </div>
+</div>
+
+<!-- ====================== MAIN VIEWS ====================== -->
+<main class="dp-main" id="dpMain">
+  <!-- Plant Layout view -->
+  <section class="view view-layout" id="view-layout">
+    <div class="scada-wrap" id="scadaWrap">
+      <div id="layoutHost" class="layout-host"></div>
+      <div class="zoom-controls" aria-label="Layout zoom controls">
+        <button class="zbtn" id="zoomIn"  title="Zoom in">＋</button>
+        <button class="zbtn" id="zoomOut" title="Zoom out">−</button>
+        <button class="zbtn wide" id="zoomFit" title="Fit / reset">FIT</button>
+        <span class="zoom-level" id="zoomLevel">100%</span>
       </div>
-      <div class="col blowers">
-        <div class="device" data-id="BLOWER1"><div class="dev-icon blower">✱</div><div class="dev-name">SBR Blower 1</div><div class="dev-controls"></div></div>
-        <div class="device" data-id="BLOWER2"><div class="dev-icon blower">✱</div><div class="dev-name">SBR Blower 2</div><div class="dev-controls"></div></div>
-        <div class="device" data-id="BLOWER3"><div class="dev-icon blower">✱</div><div class="dev-name">SBR Blower 3</div><div class="dev-controls"></div></div>
-        <div class="device" data-id="BLOWER4"><div class="dev-icon blower">✱</div><div class="dev-name">SBR Blower 4</div><div class="dev-controls"></div></div>
-      </div>
-      <div class="col air-valves">
-        <div class="device" data-id="AIR1"><div class="dev-icon valve">⛒</div><div class="dev-name">SBR-1 Air Inlet Line</div><div class="dev-controls"></div></div>
-        <div class="device" data-id="AIR2"><div class="dev-icon valve">⛒</div><div class="dev-name">SBR-2 Air Inlet Line</div><div class="dev-controls"></div></div>
-      </div>
-      <div class="col tanks">
-        <div class="tank-card" data-tank="BASIN1">
-          <div class="tank-shell">
-            <div class="tank-water"></div>
-            <div class="tank-title">Zone-3 · CASS Basin 1</div>
-            <div class="tank-sub">4500 KL · <span class="inside-summary" id="basin1Summary">— inside</span></div>
-            <button class="disclosure-btn" data-tank="BASIN1"><span class="caret">▸</span> <span class="dlabel">Show internal equipment</span></button>
-          </div>
-          <div class="tank-internals hidden" data-tank-internals="BASIN1"></div>
+      <div class="tank-drawer hidden" data-viz-internals="BASIN1" id="vizDrawer1"></div>
+      <div class="tank-drawer hidden" data-viz-internals="BASIN2" id="vizDrawer2"></div>
+    </div>
+  </section>
+
+  <!-- Set Points list view -->
+  <section class="view view-setpoints hidden" id="view-setpoints">
+    <div class="sp-page">
+      <div class="sp-page-head">
+        <div>
+          <h2>All Set Points</h2>
+          <p class="muted">Override PLC set-points for this site. Logic remains in PLC; only values change.</p>
         </div>
-        <div class="tank-card" data-tank="BASIN2">
-          <div class="tank-shell">
-            <div class="tank-water"></div>
-            <div class="tank-title">Zone-3 · CASS Basin 2</div>
-            <div class="tank-sub">4500 KL · <span class="inside-summary" id="basin2Summary">— inside</span></div>
-            <button class="disclosure-btn" data-tank="BASIN2"><span class="caret">▸</span> <span class="dlabel">Show internal equipment</span></button>
-          </div>
-          <div class="tank-internals hidden" data-tank-internals="BASIN2"></div>
+        <div class="sp-filters">
+          <input type="search" id="spSearch" placeholder="Search set points, equipment..." />
+          <select id="spTypeFilter">
+            <option value="">All types</option>
+            <option>Level</option><option>DO</option><option>Differential Pressure</option><option>Differential Pressure (calculated)</option>
+            <option>pH</option><option>FRC</option><option>ORP</option><option>Flow</option><option>Time</option>
+          </select>
         </div>
-        <div class="device decanter" data-id="DECANTER"><div class="dev-icon decanter">⇊</div><div class="dev-name">SBR Decanter</div><div class="dev-controls"></div></div>
       </div>
+      <div class="sp-list" id="spList"></div>
     </div>
   </section>
 </main>
 
-<!-- ========================= PLANT LAYOUT (JSON-DRIVEN) ========================= -->
-<main class="stage view-viz hidden" id="view-viz">
-  <div class="viz-toolbar">
-    <span class="viz-title">SBR Cycle · Live SCADA</span>
-    <span class="legend"><i class="lg air"></i> Air <i class="lg water"></i> Inlet <i class="lg sludge"></i> Sludge</span>
-  </div>
-
-  <div class="scada-wrap" id="scadaWrap">
-    <div id="layoutHost" class="layout-host"></div>
-
-    <!-- Zoom / pan controls -->
-    <div class="zoom-controls" aria-label="Layout zoom controls">
-      <button class="zbtn" id="zoomIn"  title="Zoom in (+ / wheel up)">＋</button>
-      <button class="zbtn" id="zoomOut" title="Zoom out (− / wheel down)">−</button>
-      <button class="zbtn wide" id="zoomFit" title="Fit / reset">FIT</button>
-      <span class="zoom-level" id="zoomLevel">100%</span>
-    </div>
-
-    <div class="tank-drawer hidden" data-viz-internals="BASIN1" id="vizDrawer1"></div>
-    <div class="tank-drawer hidden" data-viz-internals="BASIN2" id="vizDrawer2"></div>
-  </div>
-
-  <!-- Equipment command list panel (slides in when remote engaged) -->
-  <aside id="cmdPanel" class="cmd-panel hidden" aria-label="Equipment command list">
-    <div class="cmd-head">
+<!-- ====================== GROUP CONTROL SIDE PANEL ====================== -->
+<aside class="dp-side hidden" id="groupPanel" aria-label="Group Control">
+  <div class="dp-side-head">
+    <div class="dp-side-head-left">
+      <span class="dp-side-icon-tile">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9" stroke-dasharray="2 4"/></svg>
+      </span>
       <div>
-        <div class="cmd-title">Equipment Control</div>
-        <div class="cmd-sub" id="cmdSub">Remote engaged · click toggles or stage batch commands</div>
-      </div>
-      <button class="link" id="cmdClose">collapse ›</button>
-    </div>
-    <div class="cmd-body" id="cmdBody"></div>
-    <div class="cmd-foot">
-      <div class="cmd-foot-info">
-        <span id="cmdStaged">0 staged</span>
-        <span class="sep">·</span>
-        <span id="cmdRunning">0 running</span>
-      </div>
-      <div class="cmd-foot-actions">
-        <button class="btn ghost sm" id="cmdClearStaged">Clear</button>
-        <button class="btn primary sm" id="cmdApplyStaged" disabled>Apply 0 commands</button>
+        <div class="dp-side-overline">GROUP CONTROL</div>
+        <div class="dp-side-title" id="groupTitle">Adani SBR Group</div>
+        <div class="dp-side-sub"><b id="groupCount">16</b> equipments</div>
       </div>
     </div>
-  </aside>
-</main>
+    <button class="dp-side-close" id="closeGroupPanel">✕</button>
+  </div>
 
-<!-- Take-control modal -->
-<div id="modal" class="modal hidden">
+  <div class="dp-side-body">
+    <!-- GROUP MODE CARD -->
+    <div class="dp-card">
+      <div class="dp-card-head">
+        <div class="dp-card-title">Group Mode</div>
+      </div>
+      <div class="dp-card-row">
+        <span class="k">STATUS:</span>
+        <span class="v" id="groupModeStatus">—</span>
+      </div>
+      <div class="dp-alert warn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+        <div>
+          <div class="t1">Group control unavailable</div>
+          <div class="t2">Remote control not configured</div>
+        </div>
+      </div>
+      <button class="dp-btn ghost full" id="refreshStatus">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+        Refresh status
+      </button>
+    </div>
+
+    <!-- EQUIPMENTS LIST CARD -->
+    <div class="dp-card">
+      <div class="dp-card-head">
+        <div>
+          <div class="dp-card-title">Equipments</div>
+          <div class="dp-card-sub">Control individual equipments in this group.</div>
+        </div>
+        <span class="dp-pill" id="equipCountPill">16 equipments</span>
+      </div>
+      <div class="dp-equip-list" id="equipList"></div>
+    </div>
+  </div>
+</aside>
+
+<!-- ====================== EQUIPMENT DRAWER (CHILD-LEVEL SET POINTS) ====================== -->
+<aside class="eq-drawer hidden" id="eqDrawer" aria-label="Equipment Control">
+  <div class="eq-drawer-head">
+    <button class="dp-side-close" id="closeEqDrawer">✕</button>
+    <div>
+      <div class="dp-side-overline">EQUIPMENT CONTROL</div>
+      <div class="dp-side-title" id="eqTitle">—</div>
+      <div class="dp-side-sub" id="eqMeta">—</div>
+    </div>
+  </div>
+  <div class="eq-drawer-body" id="eqBody"></div>
+</aside>
+
+<!-- ====================== SET POINT EDIT NOTICE MODAL ====================== -->
+<div id="spNotice" class="modal hidden">
   <div class="modal-card">
-    <h2>Switch to Remote Control</h2>
-    <p class="muted">You are about to take remote control of the equipment listed below. While in remote, the PLC will <b>not</b> drive these devices — your toggles will.</p>
-    <div class="equip-list" id="equipList"></div>
-    <div class="row">
-      <label>Auto-return to local after</label>
-      <select id="duration">
-        <option value="300">5 minutes</option>
-        <option value="900" selected>15 minutes</option>
-        <option value="1800">30 minutes</option>
-        <option value="3600">1 hour</option>
-        <option value="14400">4 hours</option>
-        <option value="-1">Indefinite (manual release)</option>
-      </select>
+    <div class="modal-icon warn">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
     </div>
-    <div class="actions">
-      <button class="btn ghost" id="cancelModal">Cancel</button>
-      <button class="btn primary" id="confirmRemote">Confirm — Take Remote Control</button>
+    <h2>Set point change will alter equipment behaviour</h2>
+    <p class="muted" id="spNoticeBody">Updating this set point will change how the PLC drives the linked equipment. Logic is unchanged — only the threshold value is overridden.</p>
+    <div class="sp-impact" id="spImpactList"></div>
+    <div class="modal-actions">
+      <button class="dp-btn ghost" id="spNoticeCancel">Cancel</button>
+      <button class="dp-btn primary" id="spNoticeConfirm">Apply override</button>
     </div>
   </div>
 </div>
 
-<div id="releaseModal" class="modal hidden">
-  <div class="modal-card small">
-    <h2>Return all equipment to Local (PLC)?</h2>
-    <p class="muted">All devices in this group will revert to PLC control immediately.</p>
-    <div class="actions">
-      <button class="btn ghost" id="cancelRelease">Cancel</button>
-      <button class="btn danger" id="confirmRelease">Release Control</button>
-    </div>
-  </div>
-</div>
-
-<div id="toast" class="toast hidden"></div>
-
-<!-- Technical 3-second loader -->
+<!-- ====================== TECHNICAL REMOTE LOADER ====================== -->
 <div id="remoteLoader" class="rl hidden" aria-hidden="true">
   <div class="rl-card">
     <div class="rl-head">
@@ -204,8 +220,11 @@
   </div>
 </div>
 
+<div id="toast" class="toast hidden"></div>
+
 <script src="assets/sbr-section.js"></script>
 <script src="assets/sbr-basins.js"></script>
+<script src="assets/setpoints.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
