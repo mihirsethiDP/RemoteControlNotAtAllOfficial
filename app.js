@@ -635,15 +635,8 @@ function applyPendingSp() {
 }
 function refreshSetpointAllViews(spId) {
   const sp = (window.SETPOINTS||[]).find(x => x.id === spId); if (!sp) return;
-  document.querySelectorAll(`.sp-card[data-sp-id="${spId}"]`).forEach(old => {
-    old.replaceWith(renderSetpointCard(sp));
-  });
-  document.querySelectorAll(`.sp-tile[data-sp-id="${spId}"]`).forEach(old => {
-    old.replaceWith(renderSetpointTile(sp));
-  });
-  document.querySelectorAll(`.spc-card[data-sp-id="${spId}"]`).forEach(old => {
-    old.replaceWith(renderSpcCard(sp));
-  });
+  document.querySelectorAll(`.sp-card[data-sp-id="${spId}"]`).forEach(old => old.replaceWith(renderSetpointCard(sp)));
+  document.querySelectorAll(`.spd-card[data-sp-id="${spId}"]`).forEach(old => old.replaceWith(renderSpdCard(sp)));
 }
 
 // =====================================================================
@@ -713,11 +706,105 @@ function openInlineEdit(tile, sp) {
 // Page switcher
 // =====================================================================
 function switchPage(p) {
+  if (p === "config") { window.location.href = "configuration/"; return; }
   document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
-  if (p === "setpoints")      { $("#view-setpoints").classList.remove("hidden"); renderSetpointsPage(); }
-  else if (p === "spcontrol") { $("#view-spcontrol").classList.remove("hidden"); renderSpControlPanel(); }
-  else if (p === "config")    { window.location.href = "configuration/"; return; }
-  else                        { $("#view-layout").classList.remove("hidden"); requestAnimationFrame(renderScada); }
+  $("#view-layout").classList.remove("hidden");
+  requestAnimationFrame(renderScada);
+}
+
+// =====================================================================
+// Set Points drawer (button-launched, side panel)
+// =====================================================================
+let spDrawerFilters = { search: "", type: "" };
+
+function openSetPointsDrawer() {
+  document.getElementById("setPointsPanel").classList.remove("hidden");
+  document.getElementById("dpMain").classList.add("side-open");
+  renderSpDrawer();
+}
+function closeSetPointsDrawer() {
+  document.getElementById("setPointsPanel").classList.add("hidden");
+  // Only release padding if the Group Control panel isn't also open
+  if (document.getElementById("groupPanel").classList.contains("hidden")) {
+    document.getElementById("dpMain").classList.remove("side-open");
+  }
+}
+function renderSpDrawer() {
+  const body = $("#spDrawerBody"); if (!body) return;
+  const all = window.SETPOINTS || [];
+  $("#spDrawerCount").textContent = all.length;
+  const sps = all.filter(sp => {
+    if (spDrawerFilters.type && sp.type !== spDrawerFilters.type) return false;
+    if (spDrawerFilters.search) {
+      const hay = (sp.name + " " + sp.equipment + " " + sp.type + " " + (sp.hmiTag||"")).toLowerCase();
+      if (!hay.includes(spDrawerFilters.search)) return false;
+    }
+    return true;
+  });
+  body.innerHTML = "";
+  if (!sps.length) {
+    const empty = document.createElement("div");
+    empty.className = "sp-drawer-empty";
+    empty.textContent = "No set points match this filter.";
+    body.appendChild(empty);
+    return;
+  }
+  for (const sp of sps) body.appendChild(renderSpdCard(sp));
+}
+
+function renderSpdCard(sp) {
+  const card = document.createElement("div");
+  card.className = "spd-card" + (sp.active ? "" : " disabled");
+  card.dataset.spId = sp.id;
+  const typeShort = sp.type.replace(/\s.+/, "").slice(0,4).toUpperCase();
+  card.innerHTML = `
+    <div class="spd-card-head">
+      <div class="spd-tile">${typeShort}</div>
+      <div class="spd-meta">
+        <div class="spd-name">${sp.name}</div>
+        <div class="spd-eq">${sp.equipment}</div>
+      </div>
+      <span class="spd-status ${sp.active?'on':'off'}"><span class="pulse"></span>${sp.active?'ENABLED':'DISABLED'}</span>
+    </div>
+    <div class="spd-hmi">
+      <span class="lbl">HMI</span>
+      <code>${sp.hmiTag||"—"}</code>
+    </div>
+    <div class="spd-value" data-mode="view">
+      <div>
+        <span class="v-num">${sp.current}</span>
+        <span class="v-unit">${sp.unit}</span>
+      </div>
+      <button class="v-edit" data-spd-edit>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+        Edit
+      </button>
+    </div>
+    <div class="spd-foot">
+      <span>Range: <b>${sp.min} – ${sp.max} ${sp.unit}</b></span>
+      <span>${sp.source}</span>
+    </div>
+  `;
+  card.querySelector("[data-spd-edit]")?.addEventListener("click", () => enterSpdEdit(card, sp));
+  return card;
+}
+
+function enterSpdEdit(card, sp) {
+  const v = card.querySelector(".spd-value");
+  v.dataset.mode = "edit"; v.classList.add("editing");
+  v.innerHTML = `
+    <div class="v-input-wrap">
+      <input type="number" step="${sp.unit==='pH'?'0.1':sp.unit==='bar'?'0.1':sp.unit==='ppm'?'0.1':'1'}" value="${sp.current}" />
+      <span class="v-unit-inline">${sp.unit}</span>
+    </div>
+    <div class="v-actions">
+      <button class="btn-mini cancel">Cancel</button>
+      <button class="btn-mini save">Save</button>
+    </div>
+  `;
+  const inp = v.querySelector("input"); inp.focus(); inp.select();
+  v.querySelector(".cancel").addEventListener("click", () => card.replaceWith(renderSpdCard(sp)));
+  v.querySelector(".save").addEventListener("click", () => promptApplySetpoint(sp.id, parseFloat(inp.value)));
 }
 
 // =====================================================================
@@ -917,10 +1004,14 @@ document.addEventListener("DOMContentLoaded", () => {
   // Page selector
   $("#pageSelect")?.addEventListener("change", e => switchPage(e.target.value));
 
-  // Group panel
+  // Group panel + Set Points drawer
   $("#openGroupControl")?.addEventListener("click", openGroupPanel);
   $("#closeGroupPanel")?.addEventListener("click", closeGroupPanel);
   $("#refreshStatus")?.addEventListener("click", () => toast("Status refreshed", "ok"));
+  $("#openSetPoints")?.addEventListener("click", openSetPointsDrawer);
+  $("#closeSetPoints")?.addEventListener("click", closeSetPointsDrawer);
+  $("#spDrawerSearch")?.addEventListener("input", e => { spDrawerFilters.search = e.target.value.toLowerCase(); renderSpDrawer(); });
+  $("#spDrawerTypeFilter")?.addEventListener("change", e => { spDrawerFilters.type = e.target.value; renderSpDrawer(); });
 
   // Set point notice modal
   $("#spNoticeCancel")?.addEventListener("click", () => { document.getElementById("spNotice").classList.add("hidden"); pendingSp = null; });

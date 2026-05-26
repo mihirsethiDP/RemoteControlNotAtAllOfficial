@@ -33,7 +33,7 @@ function toast(msg, kind="") {
   toastT = setTimeout(() => t.classList.add("hidden"), 2600);
 }
 
-// ----------- List rendering -----------
+// ----------- List rendering (Data-Input inspired table) -----------
 function renderList() {
   const tbl = $("#cfgTable"); if (!tbl) return;
   tbl.innerHTML = "";
@@ -47,16 +47,16 @@ function renderList() {
     }
     return true;
   });
-
   $("#cfgCount").textContent = `${sps.length} configured`;
 
   const header = document.createElement("div");
-  header.className = "cfg-row-h";
+  header.className = "cfg-trow cfg-thead";
   header.innerHTML = `
-    <div>Type</div>
-    <div>Name · HMI Tag</div>
-    <div>Linked Equipment</div>
+    <div>Set Point</div>
     <div>Range</div>
+    <div>HMI Tag</div>
+    <div>Linked Equipment</div>
+    <div>Type</div>
     <div>Status</div>
     <div></div>
   `;
@@ -72,22 +72,29 @@ function renderList() {
 
   for (const sp of sps) {
     const row = document.createElement("div");
-    row.className = "cfg-row-r";
+    row.className = "cfg-trow cfg-tbody";
     row.dataset.id = sp.id;
     const eqNames = (sp.targets||[]).map(t => EQUIPMENT_CATALOG.find(e => e.id===t)?.name || t);
     row.innerHTML = `
-      <div><span class="ic">${sp.type.slice(0,3).toUpperCase()}</span></div>
-      <div>
-        <div class="r-name">${sp.name}</div>
-        <code class="r-tag">${sp.hmiTag||"—"}</code>
+      <div class="c-name">
+        <div class="c-name-main">${sp.name}</div>
+        <div class="c-name-sub">${sp.equipment}</div>
       </div>
-      <div class="r-eq">${eqNames.length ? eqNames.slice(0,3).join(", ") + (eqNames.length>3?` <span class="muted">+${eqNames.length-3}</span>`:"") : '<span class="muted">None</span>'}</div>
-      <div class="r-range">${sp.min} – ${sp.max} <span class="unit">${sp.unit}</span></div>
-      <div><span class="r-tag-pill ${sp.active?'on':'off'}">${sp.active?'ENABLED':'DISABLED'}</span></div>
-      <div><button class="r-edit">Edit</button></div>
+      <div class="c-range">
+        <div class="range-line">Allowed: <b>${sp.min} – ${sp.max} ${sp.unit}</b></div>
+      </div>
+      <div class="c-hmi"><code>${sp.hmiTag||"—"}</code></div>
+      <div class="c-eq">
+        ${eqNames.length ? `<span class="c-eq-main">${eqNames[0]}</span>` + (eqNames.length>1?`<span class="c-eq-rest">+${eqNames.length-1} more</span>`:"") : '<span class="muted">None linked</span>'}
+      </div>
+      <div class="c-type"><span class="c-type-pill">${sp.type}</span></div>
+      <div class="c-status"><span class="r-tag-pill ${sp.active?'on':'off'}">${sp.active?'ENABLED':'DISABLED'}</span></div>
+      <div class="c-act"><button class="ic-btn" title="Edit set point">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+      </button></div>
     `;
-    row.querySelector(".r-edit").addEventListener("click", () => openSpModal(sp.id));
-    row.addEventListener("click", e => { if (!e.target.closest(".r-edit")) openSpModal(sp.id); });
+    row.querySelector(".ic-btn").addEventListener("click", e => { e.stopPropagation(); openSpModal(sp.id); });
+    row.addEventListener("click", e => { if (!e.target.closest(".ic-btn")) openSpModal(sp.id); });
     tbl.appendChild(row);
   }
 }
@@ -120,28 +127,83 @@ function updateUnitLabels() {
   $("#mUnitMax").textContent = u;
 }
 
+// Multi-select dropdown state
+let msSelected = new Set();
+let msMenuSearch = "";
+
 function renderEquipmentChips(selectedIds) {
-  const host = $("#mEquipment");
-  host.innerHTML = "";
-  const sel = new Set(selectedIds);
-  for (const eq of EQUIPMENT_CATALOG) {
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = "multi-chip" + (sel.has(eq.id) ? " selected" : "");
-    chip.dataset.id = eq.id;
-    chip.textContent = eq.name;
-    chip.addEventListener("click", () => {
-      chip.classList.toggle("selected");
-      updateEqCount();
-    });
-    host.appendChild(chip);
+  msSelected = new Set(selectedIds);
+  msMenuSearch = "";
+  if ($("#msMenuSearch")) $("#msMenuSearch").value = "";
+  $("#msMenu")?.classList.add("hidden");
+  $("#msTrigger")?.setAttribute("aria-expanded", "false");
+  renderMsTrigger();
+  renderMsList();
+}
+
+function renderMsTrigger() {
+  const text = $("#msTriggerText");
+  const trig = $("#msTrigger");
+  if (!text || !trig) return;
+  trig.classList.toggle("has-selection", msSelected.size > 0);
+  if (!msSelected.size) {
+    text.textContent = "Select equipment…";
+    text.innerHTML = `<span class="ms-placeholder">Select equipment…</span>`;
+  } else {
+    const names = EQUIPMENT_CATALOG.filter(e => msSelected.has(e.id)).map(e => e.name);
+    // Show up to 2 chips + "+N more"
+    const visible = names.slice(0, 2);
+    const extra = names.length - visible.length;
+    text.innerHTML = visible.map(n => `<span class="ms-chip">${n}</span>`).join("") +
+                     (extra > 0 ? `<span class="ms-chip more">+${extra} more</span>` : "");
   }
   updateEqCount();
 }
 
+function renderMsList() {
+  const list = $("#msMenuList"); if (!list) return;
+  list.innerHTML = "";
+  const items = EQUIPMENT_CATALOG.filter(eq =>
+    !msMenuSearch || eq.name.toLowerCase().includes(msMenuSearch));
+  if (!items.length) {
+    list.innerHTML = `<div class="ms-empty">No equipment matches "${msMenuSearch}"</div>`;
+    return;
+  }
+  for (const eq of items) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "ms-item" + (msSelected.has(eq.id) ? " selected" : "");
+    item.dataset.id = eq.id;
+    item.innerHTML = `
+      <span class="ms-check">${msSelected.has(eq.id) ? '<svg width="11" height="11" viewBox="0 0 14 14"><path d="M2,7 L5.5,10.5 L12,3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}</span>
+      <span class="ms-name">${eq.name}</span>
+    `;
+    item.addEventListener("click", () => {
+      if (msSelected.has(eq.id)) msSelected.delete(eq.id);
+      else msSelected.add(eq.id);
+      renderMsTrigger();
+      renderMsList();
+    });
+    list.appendChild(item);
+  }
+}
+
 function updateEqCount() {
-  const n = $("#mEquipment").querySelectorAll(".multi-chip.selected").length;
-  $("#mEqCount").textContent = `${n} selected`;
+  $("#mEqCount").textContent = `${msSelected.size} selected`;
+}
+
+function toggleMsMenu() {
+  const menu = $("#msMenu");
+  const trig = $("#msTrigger");
+  const open = !menu.classList.contains("hidden");
+  if (open) {
+    menu.classList.add("hidden");
+    trig.setAttribute("aria-expanded", "false");
+  } else {
+    menu.classList.remove("hidden");
+    trig.setAttribute("aria-expanded", "true");
+    $("#msMenuSearch")?.focus();
+  }
 }
 
 function saveSpFromModal() {
@@ -151,7 +213,7 @@ function saveSpFromModal() {
   const min = parseFloat($("#mMin").value);
   const max = parseFloat($("#mMax").value);
   const active = $("#mActive").checked;
-  const targets = Array.from($("#mEquipment").querySelectorAll(".multi-chip.selected")).map(c => c.dataset.id);
+  const targets = Array.from(msSelected);
 
   if (!name) return toast("Name is required", "bad");
   if (!hmiTag) return toast("HMI Set Point Tag is required", "bad");
@@ -195,5 +257,10 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#spModalCancel")?.addEventListener("click", closeSpModal);
   $("#spModalSave")?.addEventListener("click", saveSpFromModal);
   $("#mType")?.addEventListener("change", updateUnitLabels);
-  document.addEventListener("keydown", e => { if (e.key === "Escape") closeSpModal(); });
+  $("#msTrigger")?.addEventListener("click", e => { e.stopPropagation(); toggleMsMenu(); });
+  $("#msMenuSearch")?.addEventListener("input", e => { msMenuSearch = e.target.value.toLowerCase(); renderMsList(); });
+  $("#msSelectAll")?.addEventListener("click", () => { EQUIPMENT_CATALOG.forEach(eq => msSelected.add(eq.id)); renderMsTrigger(); renderMsList(); });
+  $("#msClearAll")?.addEventListener("click", () => { msSelected.clear(); renderMsTrigger(); renderMsList(); });
+  document.addEventListener("click", e => { if (!e.target.closest("#msEquipment")) { $("#msMenu")?.classList.add("hidden"); $("#msTrigger")?.setAttribute("aria-expanded","false"); } });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") { closeSpModal(); $("#msMenu")?.classList.add("hidden"); } });
 });

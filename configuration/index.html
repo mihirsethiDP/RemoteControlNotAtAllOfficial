@@ -114,7 +114,22 @@
 
       <div class="cfg-field">
         <label>Linked equipment <span class="cfg-help" id="mEqCount">0 selected</span></label>
-        <div class="cfg-multi" id="mEquipment"></div>
+        <div class="ms-dropdown" id="msEquipment">
+          <button type="button" class="ms-trigger" id="msTrigger" aria-haspopup="listbox" aria-expanded="false">
+            <span class="ms-trigger-text" id="msTriggerText">Select equipment…</span>
+            <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2,3 L5,7 L8,3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="ms-menu hidden" id="msMenu" role="listbox">
+            <div class="ms-menu-search">
+              <input type="search" id="msMenuSearch" placeholder="Filter equipment…" />
+            </div>
+            <div class="ms-menu-actions">
+              <button type="button" id="msSelectAll">Select all</button>
+              <button type="button" id="msClearAll">Clear</button>
+            </div>
+            <div class="ms-menu-list" id="msMenuList"></div>
+          </div>
+        </div>
         <small>Equipment driven by this set point. Pick one or more.</small>
       </div>
 
