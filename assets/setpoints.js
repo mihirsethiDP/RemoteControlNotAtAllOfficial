@@ -3,11 +3,18 @@
 // Logic is fed into the PLC; the HMI Set Point Tag is the address the
 // PLC reads from, and is what gets overwritten when an operator edits.
 // =====================================================================
+// Seed a few history entries on a couple of set points so the UI has something to show
+const _hist = (entries) => entries;
 window.SETPOINTS = [
   { id:"sp-lvl-cass1", type:"Level", name:"CASS Basin 1 — high level cut-in",
     equipment:"CASS Basin 1", targets:["RECIRC_A1","RECIRC_A2"],
     hmiTag:"LIT_201.LEVEL_HIGH_SP",
-    unit:"%", current:70, min:55, max:90, active:true, source:"PLC default" },
+    unit:"%", current:70, min:55, max:90, active:true, source:"PLC default",
+    history: _hist([
+      { ts:"2026-05-04T09:14:00Z", kind:"value", from:75, to:70, who:"op-mihir", note:"Rainy week — lower cut-in to draw down sooner" },
+      { ts:"2026-04-21T11:30:00Z", kind:"value", from:80, to:75, who:"op-anita" },
+      { ts:"2026-04-15T08:00:00Z", kind:"config", changes:{ max:{from:85,to:90} }, who:"admin-rahul", note:"Expanded ceiling per ops review" },
+    ]) },
 
   { id:"sp-lvl-cass2", type:"Level", name:"CASS Basin 2 — high level cut-in",
     equipment:"CASS Basin 2", targets:["RECIRC_B1","RECIRC_B2"],
@@ -17,7 +24,11 @@ window.SETPOINTS = [
   { id:"sp-do-cass1", type:"DO", name:"Dissolved Oxygen — Zone-3 Basin 1",
     equipment:"CASS Basin 1 · Zone-3", targets:["BLOWER1","BLOWER2","AIR1"],
     hmiTag:"AIT_101.DO_SP",
-    unit:"ppm", current:2.0, min:0.5, max:4.0, active:true, source:"PLC default" },
+    unit:"ppm", current:2.0, min:0.5, max:4.0, active:true, source:"PLC default",
+    history: _hist([
+      { ts:"2026-05-22T14:02:00Z", kind:"value", from:1.8, to:2.0, who:"op-mihir", note:"Aeration tuned after MLSS bump" },
+      { ts:"2026-05-10T07:45:00Z", kind:"value", from:2.2, to:1.8, who:"op-anita" },
+    ]) },
 
   { id:"sp-do-cass2", type:"DO", name:"Dissolved Oxygen — Zone-3 Basin 2",
     equipment:"CASS Basin 2 · Zone-3", targets:["BLOWER3","BLOWER4","AIR2"],

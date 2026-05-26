@@ -557,7 +557,7 @@ function renderSetpointCard(sp) {
         <button class="dp-btn ghost sm" data-sp-cancel>Cancel</button>
         <button class="dp-btn primary sm" data-sp-save>Save change</button>
       </div>
-      ${sp.active ? "" : '<div class="sp-disabled-note">⚠ This set point is disabled at the parent level — value will not be applied.</div>'}
+      ${sp.active ? "" : '<div class="sp-disabled-note">⚠ This set point is disabled — value will not be applied.</div>'}
     </div>
   `;
 
@@ -603,7 +603,7 @@ function promptApplySetpoint(spId, newValue) {
   if (!sp) return;
   if (isNaN(newValue)) { toast("Enter a valid number", "warn"); return; }
   if (newValue < sp.min || newValue > sp.max) { toast(`Value out of allowed range (${sp.min}–${sp.max} ${sp.unit})`, "bad"); return; }
-  if (!sp.active) { toast("This set point is disabled at the parent level", "warn"); return; }
+  if (!sp.active) { toast("This set point is disabled", "warn"); return; }
   pendingSp = { spId, newValue };
   document.getElementById("spNoticeBody").innerHTML = `
     You're about to overwrite the HMI tag
@@ -626,8 +626,11 @@ function applyPendingSp() {
   if (!pendingSp) return;
   const sp = (window.SETPOINTS||[]).find(x => x.id === pendingSp.spId);
   if (!sp) return;
+  const from = sp.current;
   sp.current = pendingSp.newValue;
   sp.source  = `Operator override · ${new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"})}`;
+  sp.history = sp.history || [];
+  sp.history.push({ ts: new Date().toISOString(), kind: "value", from, to: sp.current, who: "you" });
   toast(`Set point override applied · ${sp.name} = ${sp.current} ${sp.unit}`, "ok");
   document.getElementById("spNotice").classList.add("hidden");
   pendingSp = null;
@@ -764,7 +767,6 @@ function renderSpdCard(sp) {
         <div class="spd-name">${sp.name}</div>
         <div class="spd-eq">${sp.equipment}</div>
       </div>
-      <span class="spd-status ${sp.active?'on':'off'}"><span class="pulse"></span>${sp.active?'ENABLED':'DISABLED'}</span>
     </div>
     <div class="spd-hmi">
       <span class="lbl">HMI</span>

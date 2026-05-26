@@ -1,5 +1,5 @@
 // =====================================================================
-// Set-Point Parent Configuration — list + Add/Edit modal
+// Set-Point Configuration — list + Add/Edit modal
 // =====================================================================
 
 const EQUIPMENT_CATALOG = [
@@ -112,7 +112,46 @@ function openSpModal(spId) {
   $("#mActive").checked = sp ? !!sp.active : true;
   updateUnitLabels();
   renderEquipmentChips(sp?.targets || []);
+  renderHistorySection(sp);
   $("#spModal").classList.remove("hidden");
+}
+
+function renderHistorySection(sp) {
+  const wrap = $("#spHistory");
+  const list = $("#spHistoryList");
+  if (!wrap || !list) return;
+  list.innerHTML = "";
+  if (!sp || !sp.history || !sp.history.length) {
+    wrap.classList.add("hidden");
+    return;
+  }
+  wrap.classList.remove("hidden");
+  // Sort newest first
+  const items = [...sp.history].sort((a,b) => (new Date(b.ts)) - (new Date(a.ts)));
+  const unit = sp.unit || "";
+  for (const h of items) {
+    const row = document.createElement("div");
+    row.className = "sp-history-item";
+    const when = new Date(h.ts);
+    const whenStr = when.toLocaleString("en-GB", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" });
+    if (h.kind === "value") {
+      row.innerHTML = `
+        <div class="hi-dot value"></div>
+        <div class="hi-body">
+          <div class="hi-line"><b>From ${h.from} ${unit}</b><span class="arrow">→</span><b>To ${h.to} ${unit}</b></div>
+          <div class="hi-meta">${whenStr} · ${h.who||"unknown"}${h.note?` · <i>${h.note}</i>`:""}</div>
+        </div>`;
+    } else if (h.kind === "config") {
+      const changes = Object.entries(h.changes||{}).map(([k,v]) => `${k}: ${v.from} → ${v.to}`).join(" · ");
+      row.innerHTML = `
+        <div class="hi-dot config"></div>
+        <div class="hi-body">
+          <div class="hi-line"><b>Config updated</b><span class="hi-tag">range/state</span></div>
+          <div class="hi-meta">${whenStr} · ${h.who||"unknown"} · ${changes}</div>
+        </div>`;
+    }
+    list.appendChild(row);
+  }
 }
 
 function closeSpModal() {
@@ -123,8 +162,25 @@ function closeSpModal() {
 function updateUnitLabels() {
   const t = $("#mType").value;
   const u = (window.SP_TYPE_DEFAULTS||{})[t]?.unit || "";
-  $("#mUnitMin").textContent = u;
-  $("#mUnitMax").textContent = u;
+  $("#mUnitMin").textContent = u || "—";
+  $("#mUnitMax").textContent = u || "—";
+  const disp = $("#mUnitDisplay");
+  if (disp) disp.innerHTML = u ? `<b>${u}</b><span class="ud-sub">${typeBlurb(t)}</span>` : "—";
+}
+
+function typeBlurb(t) {
+  switch (t) {
+    case "DO":   return "dissolved oxygen";
+    case "pH":   return "pH units";
+    case "Level": return "tank level %";
+    case "Differential Pressure":
+    case "Differential Pressure (calculated)": return "pressure";
+    case "FRC":  return "free residual chlorine";
+    case "ORP":  return "redox potential";
+    case "Flow": return "flow rate";
+    case "Time": return "duration in seconds";
+    default: return "";
+  }
 }
 
 // Multi-select dropdown state
@@ -227,10 +283,19 @@ function saveSpFromModal() {
   if (editingSpId) {
     const sp = list.find(x => x.id === editingSpId);
     if (sp) {
+      // Record config history if min/max/active actually changed
+      const changes = {};
+      if (sp.min !== min) changes.min = { from: sp.min, to: min };
+      if (sp.max !== max) changes.max = { from: sp.max, to: max };
+      if (sp.active !== active) changes.active = { from: sp.active, to: active };
+      if (Object.keys(changes).length) {
+        sp.history = sp.history || [];
+        sp.history.push({ ts: new Date().toISOString(), kind: "config", changes, who: "you" });
+      }
       Object.assign(sp, { type, name, hmiTag, min, max, unit, active, targets });
       if (sp.current < min) sp.current = min;
       if (sp.current > max) sp.current = max;
-      sp.source = `Parent config · ${new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"})}`;
+      sp.source = `Configured · ${new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"})}`;
       toast(`Updated: ${name}`, "ok");
     }
   } else {
@@ -240,6 +305,7 @@ function saveSpFromModal() {
       equipment: targets.length ? "Linked equipment" : "Unassigned",
       current: (min + max) / 2,
       source: "Created · " + new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"}),
+      history: [{ ts: new Date().toISOString(), kind: "config", changes: { created: { from: "—", to: "—" } }, who: "you", note: "Created" }],
     });
     toast(`Added: ${name}`, "ok");
   }

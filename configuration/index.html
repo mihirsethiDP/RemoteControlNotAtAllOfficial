@@ -37,7 +37,6 @@
 <div class="dp-page-strip">
   <div class="dp-page-title">
     <h1>Set-Point Configuration</h1>
-    <span class="cfg-pill">PARENT LEVEL</span>
   </div>
   <div class="dp-page-actions">
     <a class="dp-btn ghost" href="../">← Back to plant</a>
@@ -49,7 +48,7 @@
   <div class="cfg-info">
     <div class="cfg-info-icon">ℹ</div>
     <div>
-      <div class="cfg-info-title">Parent-level configuration</div>
+      <div class="cfg-info-title">Set-point configuration</div>
       <div class="cfg-info-body">
         Add and link set points to equipment. The <b>HMI Set Point Tag</b> is the PLC address the value writes to —
         it gets overwritten when an operator changes the set point from the <a href="../">plant view</a>.
@@ -71,43 +70,47 @@
   <div class="cfg-table" id="cfgTable"></div>
 </main>
 
-<!-- ADD / EDIT SET POINT MODAL -->
+<!-- ADD / EDIT SET POINT MODAL (compact) -->
 <div id="spModal" class="modal hidden">
-  <div class="modal-card lg">
+  <div class="modal-card sp-modal">
     <div class="sp-modal-head">
-      <h2 id="spModalTitle">Configure set point</h2>
-      <button class="dp-side-close" id="spModalClose">✕</button>
+      <h2 id="spModalTitle">Add set point</h2>
+      <button class="sp-modal-x" id="spModalClose" aria-label="Close">✕</button>
     </div>
     <div class="sp-modal-body">
-      <div class="cfg-field">
-        <label>Type</label>
-        <select id="mType">
-          <option>Level</option><option>DO</option>
-          <option>Differential Pressure</option><option>Differential Pressure (calculated)</option>
-          <option>pH</option><option>FRC</option><option>ORP</option>
-          <option>Flow</option><option>Time</option>
-        </select>
-        <small>The behaviour (what equipment does in response) is defined by PLC logic and depends on this type.</small>
+      <div class="cfg-grid-2">
+        <div class="cfg-field">
+          <label>Type</label>
+          <select id="mType">
+            <option>Level</option><option>DO</option>
+            <option>Differential Pressure</option><option>Differential Pressure (calculated)</option>
+            <option>pH</option><option>FRC</option><option>ORP</option>
+            <option>Flow</option><option>Time</option>
+          </select>
+        </div>
+        <div class="cfg-field">
+          <label>Unit</label>
+          <div class="cfg-unit-display" id="mUnitDisplay">—</div>
+        </div>
       </div>
 
       <div class="cfg-field">
         <label>Set point name</label>
-        <input type="text" id="mName" placeholder="e.g. CASS Basin 1 — high level cut-in" />
+        <input type="text" id="mName" placeholder="e.g. CASS Basin 1 high level cut-in" />
       </div>
 
       <div class="cfg-field">
         <label>HMI Set Point Tag</label>
         <input type="text" id="mHmiTag" placeholder="e.g. LIT_201.LEVEL_HIGH_SP" />
-        <small>The PLC address that gets overwritten when operators change the value. Must match the HMI tag exactly.</small>
       </div>
 
-      <div class="cfg-field-row">
+      <div class="cfg-grid-2">
         <div class="cfg-field">
-          <label>Minimum threshold</label>
+          <label>Min threshold</label>
           <div class="cfg-input"><input type="number" step="any" id="mMin"><span class="unit" id="mUnitMin">—</span></div>
         </div>
         <div class="cfg-field">
-          <label>Maximum threshold</label>
+          <label>Max threshold</label>
           <div class="cfg-input"><input type="number" step="any" id="mMax"><span class="unit" id="mUnitMax">—</span></div>
         </div>
       </div>
@@ -130,20 +133,22 @@
             <div class="ms-menu-list" id="msMenuList"></div>
           </div>
         </div>
-        <small>Equipment driven by this set point. Pick one or more.</small>
       </div>
 
-      <div class="cfg-field">
-        <label class="cfg-toggle-row">
-          <span>Enable this set point</span>
-          <label class="switch big"><input type="checkbox" id="mActive" checked><span class="slider"></span></label>
-        </label>
-        <small>When disabled, the PLC ignores operator overrides for this tag.</small>
+      <div class="cfg-toggle-row">
+        <span>Enable this set point</span>
+        <label class="switch big"><input type="checkbox" id="mActive" checked><span class="slider"></span></label>
+      </div>
+
+      <!-- HISTORY -->
+      <div class="sp-history hidden" id="spHistory">
+        <div class="sp-history-head">Edit history</div>
+        <div class="sp-history-list" id="spHistoryList"></div>
       </div>
     </div>
     <div class="sp-modal-foot">
       <button class="dp-btn ghost" id="spModalCancel">Cancel</button>
-      <button class="dp-btn primary" id="spModalSave">Save set point</button>
+      <button class="dp-btn primary" id="spModalSave">Save</button>
     </div>
   </div>
 </div>
