@@ -70,9 +70,9 @@
     </button>
     <div class="dp-page-select">
       <select id="pageSelect">
-        <option value="layout">Select Page...</option>
         <option value="layout">Plant Layout</option>
-        <option value="setpoints">All Set Points</option>
+        <option value="spcontrol">Set Point Control Panel</option>
+        <option value="setpoints">All Set Points (browse)</option>
         <option value="config">Configuration (parent)</option>
       </select>
       <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2,3 L5,7 L8,3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -94,6 +94,40 @@
       </div>
       <div class="tank-drawer hidden" data-viz-internals="BASIN1" id="vizDrawer1"></div>
       <div class="tank-drawer hidden" data-viz-internals="BASIN2" id="vizDrawer2"></div>
+    </div>
+  </section>
+
+  <!-- Set Point Control Panel view -->
+  <section class="view view-spcontrol hidden" id="view-spcontrol">
+    <div class="spc-shell">
+      <aside class="spc-sidebar">
+        <div class="spc-side-head">
+          <div class="spc-side-title">Set Point Control</div>
+          <div class="spc-side-sub">Edit values configured on the plant</div>
+        </div>
+        <div class="spc-side-search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="search" id="spcSearch" placeholder="Search…" />
+        </div>
+        <div class="spc-side-list" id="spcSideList"></div>
+        <div class="spc-side-foot">
+          <div class="spc-meta-row"><span>HMI sync</span><span class="ok-dot"></span></div>
+          <div class="spc-meta-row"><span>Last poll</span><span id="spcLastPoll">just now</span></div>
+        </div>
+      </aside>
+      <main class="spc-main">
+        <div class="spc-toolbar">
+          <div>
+            <div class="spc-cat-title" id="spcCatTitle">All set points</div>
+            <div class="spc-cat-sub" id="spcCatSub">12 configured</div>
+          </div>
+          <div class="spc-toolbar-right">
+            <span class="spc-legend"><span class="dot ok"></span>Enabled</span>
+            <span class="spc-legend"><span class="dot off"></span>Disabled</span>
+          </div>
+        </div>
+        <div class="spc-grid" id="spcGrid"></div>
+      </main>
     </div>
   </section>
 

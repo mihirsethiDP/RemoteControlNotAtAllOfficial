@@ -634,15 +634,15 @@ function applyPendingSp() {
   refreshSetpointAllViews(sp.id);
 }
 function refreshSetpointAllViews(spId) {
-  // Re-render the affected sp card in every place it's shown
   const sp = (window.SETPOINTS||[]).find(x => x.id === spId); if (!sp) return;
   document.querySelectorAll(`.sp-card[data-sp-id="${spId}"]`).forEach(old => {
-    const fresh = renderSetpointCard(sp);
-    old.replaceWith(fresh);
+    old.replaceWith(renderSetpointCard(sp));
   });
   document.querySelectorAll(`.sp-tile[data-sp-id="${spId}"]`).forEach(old => {
-    const fresh = renderSetpointTile(sp);
-    old.replaceWith(fresh);
+    old.replaceWith(renderSetpointTile(sp));
+  });
+  document.querySelectorAll(`.spc-card[data-sp-id="${spId}"]`).forEach(old => {
+    old.replaceWith(renderSpcCard(sp));
   });
 }
 
@@ -714,9 +714,148 @@ function openInlineEdit(tile, sp) {
 // =====================================================================
 function switchPage(p) {
   document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
-  if (p === "setpoints") { $("#view-setpoints").classList.remove("hidden"); renderSetpointsPage(); }
-  else if (p === "config") { window.location.href = "configuration/"; return; }
-  else { $("#view-layout").classList.remove("hidden"); requestAnimationFrame(renderScada); }
+  if (p === "setpoints")      { $("#view-setpoints").classList.remove("hidden"); renderSetpointsPage(); }
+  else if (p === "spcontrol") { $("#view-spcontrol").classList.remove("hidden"); renderSpControlPanel(); }
+  else if (p === "config")    { window.location.href = "configuration/"; return; }
+  else                        { $("#view-layout").classList.remove("hidden"); requestAnimationFrame(renderScada); }
+}
+
+// =====================================================================
+// Set Point Control Panel (dedicated editor, no plant layout)
+// =====================================================================
+let spcFilter = "all";  // 'all' or one of the SP type strings
+let spcSearch = "";
+
+function renderSpControlPanel() {
+  const all = window.SETPOINTS || [];
+  // Build category sidebar (counts by type, plus "All")
+  const sideList = $("#spcSideList");
+  if (sideList) {
+    sideList.innerHTML = "";
+    const typeOrder = ["Level","DO","Differential Pressure","Differential Pressure (calculated)","pH","FRC","ORP","Flow","Time"];
+    const types = ["All", ...typeOrder.filter(t => all.some(sp => sp.type === t))];
+    for (const t of types) {
+      const cat = document.createElement("div");
+      const id = t === "All" ? "all" : t;
+      cat.className = "spc-cat" + (id === spcFilter ? " active" : "");
+      cat.dataset.cat = id;
+      const count = t === "All" ? all.length : all.filter(sp => sp.type === t).length;
+      const ic = t === "All" ? "ALL" : t.slice(0,3).toUpperCase();
+      cat.innerHTML = `
+        <div class="cat-ic">${ic}</div>
+        <div class="cat-name">${t}</div>
+        <div class="cat-count">${count}</div>
+      `;
+      cat.addEventListener("click", () => { spcFilter = id; renderSpControlPanel(); });
+      sideList.appendChild(cat);
+    }
+  }
+
+  // Compute filtered list
+  const sps = all.filter(sp => {
+    if (spcFilter !== "all" && sp.type !== spcFilter) return false;
+    if (spcSearch) {
+      const hay = (sp.name + " " + sp.equipment + " " + sp.type + " " + (sp.hmiTag||"")).toLowerCase();
+      if (!hay.includes(spcSearch)) return false;
+    }
+    return true;
+  });
+
+  $("#spcCatTitle").textContent = spcFilter === "all" ? "All set points" : spcFilter;
+  $("#spcCatSub").textContent   = `${sps.length} set point${sps.length===1?'':'s'}` + (spcFilter !== "all" ? "" : " configured");
+
+  const grid = $("#spcGrid");
+  grid.innerHTML = "";
+  if (!sps.length) {
+    const empty = document.createElement("div");
+    empty.className = "spc-empty";
+    empty.textContent = "No set points match this filter.";
+    grid.appendChild(empty);
+    return;
+  }
+  for (const sp of sps) grid.appendChild(renderSpcCard(sp));
+}
+
+function renderSpcCard(sp) {
+  const card = document.createElement("div");
+  card.className = "spc-card" + (sp.active ? "" : " disabled");
+  card.dataset.spId = sp.id;
+  const typeShort = sp.type.replace(/\s.+/, "").slice(0,4).toUpperCase();
+  const eqNames = (sp.targets||[]).map(t => DEVICES[t]?.name || t);
+  card.innerHTML = `
+    <div class="spc-card-head">
+      <div class="spc-card-tile">${typeShort}</div>
+      <div class="spc-card-meta">
+        <div class="spc-card-name">${sp.name}</div>
+        <div class="spc-card-eq">${sp.equipment}</div>
+      </div>
+      <span class="spc-card-status ${sp.active?'on':'off'}">
+        <span class="pulse"></span>${sp.active?'ENABLED':'DISABLED'}
+      </span>
+    </div>
+
+    <div class="spc-hmi-row">
+      <span class="label">HMI</span>
+      <code>${sp.hmiTag||"—"}</code>
+    </div>
+
+    <div class="spc-value-display" data-mode="view">
+      <div>
+        <span class="spc-value-num">${sp.current}</span>
+        <span class="spc-value-unit">${sp.unit}</span>
+      </div>
+      <button class="spc-value-edit" data-spc-edit>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+        Edit
+      </button>
+    </div>
+
+    <div class="spc-card-foot">
+      <div class="spc-foot-cell">
+        <div class="k">Range</div>
+        <div class="v">${sp.min} – ${sp.max} <span style="color:var(--muted)">${sp.unit}</span></div>
+      </div>
+      <div class="spc-foot-cell">
+        <div class="k">Equipment</div>
+        <div class="v" title="${eqNames.join(', ')}">${eqNames.length ? eqNames.slice(0,2).join(", ") + (eqNames.length>2?` +${eqNames.length-2}`:"") : "—"}</div>
+      </div>
+      <div class="spc-foot-cell" style="grid-column:1/-1">
+        <div class="k">Source</div>
+        <div class="v">${sp.source}</div>
+      </div>
+    </div>
+  `;
+
+  const editBtn = card.querySelector("[data-spc-edit]");
+  const display = card.querySelector(".spc-value-display");
+  editBtn?.addEventListener("click", () => enterSpcEditMode(card, sp));
+  return card;
+}
+
+function enterSpcEditMode(card, sp) {
+  const display = card.querySelector(".spc-value-display");
+  display.dataset.mode = "edit";
+  display.classList.add("editing");
+  display.innerHTML = `
+    <div class="spc-value-input-wrap">
+      <input type="number" step="${sp.unit==='pH'?'0.1':sp.unit==='bar'?'0.1':sp.unit==='ppm'?'0.1':'1'}" value="${sp.current}" />
+      <span class="spc-value-unit-inline">${sp.unit}</span>
+    </div>
+    <div class="spc-edit-actions">
+      <button class="btn-mini cancel" data-cancel>Cancel</button>
+      <button class="btn-mini save" data-save>Save</button>
+    </div>
+  `;
+  const inp = display.querySelector("input");
+  inp.focus(); inp.select();
+  display.querySelector("[data-cancel]").addEventListener("click", () => {
+    // Re-render this single card
+    const fresh = renderSpcCard(sp);
+    card.replaceWith(fresh);
+  });
+  display.querySelector("[data-save]").addEventListener("click", () => {
+    promptApplySetpoint(sp.id, parseFloat(inp.value));
+  });
 }
 
 // =====================================================================
@@ -790,6 +929,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // Set Points filters
   $("#spSearch")?.addEventListener("input", renderSetpointsPage);
   $("#spTypeFilter")?.addEventListener("change", renderSetpointsPage);
+
+  // Control Panel sidebar search
+  $("#spcSearch")?.addEventListener("input", e => { spcSearch = e.target.value.toLowerCase(); renderSpControlPanel(); });
 
   // Zoom controls
   $("#zoomIn")?.addEventListener("click", () => zoomBy(1/1.25));
