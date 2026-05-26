@@ -479,51 +479,23 @@ function toggleEquipmentRow(wrap, id) {
 }
 
 function renderEquipmentExpansion(wrap, id) {
-  const d = DEVICES[id];
   const host = wrap.querySelector(".dp-equip-expand");
+  host.innerHTML = "";
 
-  // On/Off + mode
-  const ctl = document.createElement("div");
-  ctl.className = "exp-ctl";
-  ctl.innerHTML = `
-    <div class="exp-ctl-row">
-      <span class="eq-mode-pill ${d.mode==='remote'?'remote':'local'}">${d.mode==='remote'?'REMOTE':'LOCAL (PLC)'}</span>
-      <div class="exp-onoff">
-        <button class="seg ${d.on?'active on':''}" data-act="on">▶ ON</button>
-        <button class="seg ${!d.on?'active off':''}" data-act="off">■ OFF</button>
-      </div>
-    </div>`;
-  host.appendChild(ctl);
-  ctl.querySelector('[data-act="on"]').addEventListener("click", e => { e.stopPropagation(); attemptToggle(id, true); refreshRowAfterToggle(wrap, id); });
-  ctl.querySelector('[data-act="off"]').addEventListener("click", e => { e.stopPropagation(); attemptToggle(id, false); refreshRowAfterToggle(wrap, id); });
-
-  // Set points linked to this equipment
   const linked = (window.SETPOINTS||[]).filter(sp => sp.targets?.includes(id));
   const h = document.createElement("div");
   h.className = "exp-sp-head";
-  h.textContent = linked.length
-    ? `LINKED SET POINTS · ${linked.length}`
-    : "LINKED SET POINTS";
+  h.textContent = linked.length ? `LINKED SET POINTS · ${linked.length}` : "LINKED SET POINTS";
   host.appendChild(h);
-  if (linked.length) {
-    for (const sp of linked) host.appendChild(renderSetpointCard(sp, true));
-  } else {
+
+  if (!linked.length) {
     const empty = document.createElement("div");
     empty.className = "exp-empty";
     empty.textContent = "No set points linked to this equipment.";
     host.appendChild(empty);
+    return;
   }
-}
-
-function refreshRowAfterToggle(wrap, id) {
-  const d = DEVICES[id];
-  wrap.classList.toggle("on-now", d.on);
-  const statusLine = wrap.querySelector(".status-line");
-  if (statusLine) statusLine.innerHTML = `STATUS: <b class="${d.on?'on':'off'}">${d.on?'On':'Off'}</b>`;
-  const onSeg  = wrap.querySelector('[data-act="on"]');
-  const offSeg = wrap.querySelector('[data-act="off"]');
-  if (onSeg)  onSeg.className  = `seg ${d.on ? "active on" : ""}`;
-  if (offSeg) offSeg.className = `seg ${!d.on ? "active off" : ""}`;
+  for (const sp of linked) host.appendChild(renderSetpointCard(sp));
 }
 function refreshEquipmentRow(id) {
   const row = document.querySelector(`.dp-equip-row[data-id="${id}"]`);
@@ -554,7 +526,7 @@ function iconFor(type) {
 // =====================================================================
 // Set Point card renderer (used inline + on All Set Points page)
 // =====================================================================
-function renderSetpointCard(sp, compact=false) {
+function renderSetpointCard(sp) {
   const card = document.createElement("div");
   card.className = "sp-card";
   card.dataset.spId = sp.id;
@@ -565,65 +537,61 @@ function renderSetpointCard(sp, compact=false) {
         <div class="sp-icon-tile">${typeShort}</div>
         <div>
           <div class="sp-card-title">${sp.name}</div>
-          <div class="sp-card-sub">${sp.equipment} · ${sp.type}</div>
+          <div class="sp-card-sub">${sp.type} · range ${sp.min}–${sp.max} ${sp.unit}</div>
+          <code class="sp-hmi-tag">HMI tag: ${sp.hmiTag||"—"}</code>
         </div>
-      </div>
-      <div>
-        <label class="sp-toggle"><input type="checkbox" ${sp.active?"checked":""} data-sp-active><span class="slider"></span></label>
       </div>
     </div>
     <div class="sp-card-body">
-      <div class="sp-row">
-        <div class="lbl">Current set point<small>${sp.description||""}</small></div>
-        <div class="sp-input">
-          <input type="number" step="${sp.unit==='pH'?'0.1':sp.unit==='bar'?'0.1':sp.unit==='ppm'?'0.1':'1'}" value="${sp.current}" data-sp-value>
+      <div class="sp-value-row">
+        <span class="sp-value-label">Set point value</span>
+        <div class="sp-value-input" data-mode="view">
+          <input type="number" step="${sp.unit==='pH'?'0.1':sp.unit==='bar'?'0.1':sp.unit==='ppm'?'0.1':'1'}" value="${sp.current}" data-sp-value readonly>
           <span class="unit">${sp.unit}</span>
-          <button class="save" data-sp-save>Save</button>
+          <button class="pencil" data-sp-edit title="Edit set point">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+          </button>
         </div>
       </div>
-      <div>
-        <div class="sp-range-bar">
-          ${rangeBarHtml(sp)}
-        </div>
-        <div class="sp-range-ticks">
-          <span>min ${sp.min}${sp.unit}</span>
-          <span>safe ${sp.safeMin}–${sp.safeMax}${sp.unit}</span>
-          <span>max ${sp.max}${sp.unit}</span>
-        </div>
+      <div class="sp-card-actions hidden" data-sp-actions>
+        <button class="dp-btn ghost sm" data-sp-cancel>Cancel</button>
+        <button class="dp-btn primary sm" data-sp-save>Save change</button>
       </div>
-      ${sp.vfd ? `
-        <div class="sp-row">
-          <div class="lbl">Linked VFD output<small>Computed by PLC — read-only here</small></div>
-          <div style="display:flex;gap:8px;font-size:12px;font-family:monospace">
-            <span>${sp.vfd.rpm} rpm</span><span>·</span>
-            <span>${sp.vfd.freq} Hz</span><span>·</span>
-            <span>${sp.vfd.current} A</span>
-          </div>
-        </div>` : ""}
-      <div style="font-size:11px;color:var(--muted);padding-top:4px;border-top:1px solid var(--line)">
-        <b style="color:var(--text-2)">Source:</b> ${sp.source} ·
-        <b style="color:var(--text-2)">Behaviour:</b> ${sp.behaviour}
-      </div>
+      ${sp.active ? "" : '<div class="sp-disabled-note">⚠ This set point is disabled at the parent level — value will not be applied.</div>'}
     </div>
   `;
-  // Wire actions
-  const valInput = card.querySelector("[data-sp-value]");
-  const saveBtn  = card.querySelector("[data-sp-save]");
-  const activeIn = card.querySelector("[data-sp-active]");
-  saveBtn.addEventListener("click", () => promptApplySetpoint(sp.id, parseFloat(valInput.value)));
-  activeIn.addEventListener("change", e => { sp.active = e.target.checked; toast(`${sp.name} ${sp.active?"activated":"paused"}`, "ok"); refreshSetpointAllViews(sp.id); });
+
+  const wrap = card.querySelector("[data-mode]");
+  const input = card.querySelector("[data-sp-value]");
+  const editBtn = card.querySelector("[data-sp-edit]");
+  const actions = card.querySelector("[data-sp-actions]");
+  const cancelBtn = card.querySelector("[data-sp-cancel]");
+  const saveBtn = card.querySelector("[data-sp-save]");
+
+  editBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    wrap.dataset.mode = "edit";
+    wrap.classList.add("editing");
+    input.removeAttribute("readonly");
+    input.focus(); input.select();
+    actions.classList.remove("hidden");
+  });
+  cancelBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    input.value = sp.current;
+    wrap.dataset.mode = "view";
+    wrap.classList.remove("editing");
+    input.setAttribute("readonly", "");
+    actions.classList.add("hidden");
+  });
+  saveBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    promptApplySetpoint(sp.id, parseFloat(input.value));
+  });
+
+  // Prevent the row-click toggle from collapsing this card
+  card.addEventListener("click", e => e.stopPropagation());
   return card;
-}
-function rangeBarHtml(sp) {
-  const span = sp.max - sp.min || 1;
-  const safeL = ((sp.safeMin - sp.min) / span) * 100;
-  const safeW = ((sp.safeMax - sp.safeMin) / span) * 100;
-  const cur = ((sp.current - sp.min) / span) * 100;
-  return `
-    <div class="min-max" style="left:0;width:100%"></div>
-    <div class="safe" style="left:${safeL}%;width:${safeW}%"></div>
-    <div class="marker" style="left:calc(${cur}% - 1.5px)"></div>
-  `;
 }
 
 // =====================================================================
@@ -635,21 +603,21 @@ function promptApplySetpoint(spId, newValue) {
   if (!sp) return;
   if (isNaN(newValue)) { toast("Enter a valid number", "warn"); return; }
   if (newValue < sp.min || newValue > sp.max) { toast(`Value out of allowed range (${sp.min}–${sp.max} ${sp.unit})`, "bad"); return; }
+  if (!sp.active) { toast("This set point is disabled at the parent level", "warn"); return; }
   pendingSp = { spId, newValue };
-  const outOfSafe = newValue < sp.safeMin || newValue > sp.safeMax;
-  // populate notice
   document.getElementById("spNoticeBody").innerHTML = `
-    Updating <b>${sp.name}</b> from <b>${sp.current} ${sp.unit}</b> → <b>${newValue} ${sp.unit}</b>.
-    Logic is unchanged — the PLC will use the new threshold from the next evaluation tick.
-    ${outOfSafe ? `<br><br><span style="color:#aa1c1c;font-weight:600">⚠ Value is OUTSIDE the safe range (${sp.safeMin}–${sp.safeMax} ${sp.unit}). Behaviour may be unexpected.</span>` : ""}
+    You're about to overwrite the HMI tag
+    <code style="background:#fafaf6;border:1px solid var(--line);padding:1px 6px;border-radius:4px;font-size:12px;color:var(--text)">${sp.hmiTag || "—"}</code>
+    from <b>${sp.current} ${sp.unit}</b> to <b>${newValue} ${sp.unit}</b>.
+    <br><br>
+    The PLC will use the new value on its next evaluation tick. Linked equipment behaviour may change.
   `;
   const impact = document.getElementById("spImpactList");
-  impact.innerHTML = `<div class="sp-impact-head">EXPECTED EQUIPMENT BEHAVIOUR</div>` + (sp.targets||[]).map(t => {
+  impact.innerHTML = `<div class="sp-impact-head">LINKED EQUIPMENT</div>` + (sp.targets||[]).map(t => {
     const dev = DEVICES[t];
     return `<div class="sp-impact-row">
       <span class="arrow">→</span>
       <span class="target">${dev?dev.name:t}</span>
-      <span class="effect">${sp.behaviour}</span>
     </div>`;
   }).join("");
   document.getElementById("spNotice").classList.remove("hidden");
@@ -698,23 +666,24 @@ function renderSetpointTile(sp) {
   const tile = document.createElement("div");
   tile.className = "sp-tile";
   tile.dataset.spId = sp.id;
+  const cur = ((sp.current - sp.min) / (sp.max - sp.min || 1)) * 100;
   tile.innerHTML = `
     <div class="sp-tile-head">
       <div class="sp-icon-tile">${sp.type.slice(0,3).toUpperCase()}</div>
       <div style="flex:1">
         <div style="display:flex;align-items:center;gap:8px">
           <span class="sp-type-tag">${sp.type}</span>
-          ${sp.active ? '' : '<span class="sp-type-tag" style="background:#fdeaea;color:#aa1c1c">INACTIVE</span>'}
+          ${sp.active ? '' : '<span class="sp-type-tag" style="background:#fdeaea;color:#aa1c1c">DISABLED</span>'}
         </div>
         <div class="sp-tile-name" style="margin-top:6px">${sp.name}</div>
         <div class="sp-tile-equip">${sp.equipment}</div>
+        <code class="sp-hmi-tag">HMI tag: ${sp.hmiTag||"—"}</code>
       </div>
     </div>
     <div class="sp-tile-current">${sp.current}<span class="unit">${sp.unit}</span></div>
-    <div class="sp-range-bar">${rangeBarHtml(sp)}</div>
+    <div class="sp-range-bar"><div class="marker" style="left:calc(${cur}% - 1.5px)"></div></div>
     <div class="sp-range-ticks">
       <span>min ${sp.min}${sp.unit}</span>
-      <span>safe ${sp.safeMin}–${sp.safeMax}${sp.unit}</span>
       <span>max ${sp.max}${sp.unit}</span>
     </div>
     <div class="sp-tile-footer">
