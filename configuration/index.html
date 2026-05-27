@@ -50,27 +50,56 @@
     <div>
       <div class="cfg-info-title">Set-point configuration</div>
       <div class="cfg-info-body">
-        Add and link set points to equipment. The <b>HMI Set Point Tag</b> is the PLC address the value writes to —
-        it gets overwritten when an operator changes the set point from the <a href="../">plant view</a>.
-        PLC automation logic is not modified here.
+        Add set points (per type) with <b>hard limits</b> and <b>soft warning band</b>, link them to equipment, and group duty/standby pumps + blowers for switchover. Operators override values from the plant view. PLC logic is not modified here.
       </div>
     </div>
   </div>
 
-  <div class="cfg-toolbar-full">
-    <input type="search" id="cfgSearch" placeholder="Search by name, equipment, HMI tag…" />
-    <select id="cfgFilter">
-      <option value="">All types</option>
-      <option>Level</option><option>DO</option><option>Differential Pressure</option><option>Differential Pressure (calculated)</option>
-      <option>pH</option><option>FRC</option><option>ORP</option><option>Flow</option><option>Time</option>
-    </select>
-    <span class="cfg-count" id="cfgCount">0 configured</span>
+  <!-- TAB BAR -->
+  <div class="cfg-tabs">
+    <button class="cfg-tab active" data-tab="setpoints">Set Points</button>
+    <button class="cfg-tab" data-tab="groups">Duty/Standby Groups</button>
+    <button class="cfg-tab" data-tab="audit">Audit Log</button>
   </div>
 
-  <div class="cfg-table" id="cfgTable"></div>
+  <!-- PANE: SET POINTS -->
+  <section class="cfg-pane" id="cfgPaneSetpoints">
+    <div class="cfg-toolbar-full">
+      <input type="search" id="cfgSearch" placeholder="Search by name, equipment, HMI tag…" />
+      <select id="cfgFilter">
+        <option value="">All types</option>
+        <option>Level</option><option>DO</option><option>Differential Pressure</option><option>Differential Pressure (calculated)</option>
+        <option>pH</option><option>FRC</option><option>ORP</option><option>Flow</option><option>Time</option>
+      </select>
+      <span class="cfg-count" id="cfgCount">0 configured</span>
+    </div>
+    <div class="cfg-table" id="cfgTable"></div>
+  </section>
+
+  <!-- PANE: GROUPS -->
+  <section class="cfg-pane hidden" id="cfgPaneGroups">
+    <div class="cfg-groups-head">
+      <div>
+        <div class="cfg-groups-title">Duty/Standby Groups</div>
+        <div class="cfg-groups-sub">Equipment that alternates duty cycles. One Switchover Time applies to the group.</div>
+      </div>
+    </div>
+    <div class="grp-list" id="groupsList"></div>
+  </section>
+
+  <!-- PANE: AUDIT -->
+  <section class="cfg-pane hidden" id="cfgPaneAudit">
+    <div class="cfg-groups-head">
+      <div>
+        <div class="cfg-groups-title">Audit Log</div>
+        <div class="cfg-groups-sub">Every set-point change, remote engagement, command override and PLC write failure.</div>
+      </div>
+    </div>
+    <div class="audit-list" id="auditList"></div>
+  </section>
 </main>
 
-<!-- ADD / EDIT SET POINT MODAL (compact) -->
+<!-- ADD / EDIT SET POINT MODAL -->
 <div id="spModal" class="modal hidden">
   <div class="modal-card sp-modal">
     <div class="sp-modal-head">
@@ -86,6 +115,7 @@
             <option>Differential Pressure</option><option>Differential Pressure (calculated)</option>
             <option>pH</option><option>FRC</option><option>ORP</option>
             <option>Flow</option><option>Time</option>
+            <option>LT (Transfer Pump)</option>
           </select>
         </div>
         <div class="cfg-field">
@@ -104,16 +134,8 @@
         <input type="text" id="mHmiTag" placeholder="e.g. LIT_201.LEVEL_HIGH_SP" />
       </div>
 
-      <div class="cfg-grid-2">
-        <div class="cfg-field">
-          <label>Min threshold</label>
-          <div class="cfg-input"><input type="number" step="any" id="mMin"><span class="unit" id="mUnitMin">—</span></div>
-        </div>
-        <div class="cfg-field">
-          <label>Max threshold</label>
-          <div class="cfg-input"><input type="number" step="any" id="mMax"><span class="unit" id="mUnitMax">—</span></div>
-        </div>
-      </div>
+      <!-- Dynamic schema fields injected here based on type -->
+      <div id="mSchemaFields"></div>
 
       <div class="cfg-field">
         <label>Linked equipment <span class="cfg-help" id="mEqCount">0 selected</span></label>
@@ -140,7 +162,6 @@
         <label class="switch big"><input type="checkbox" id="mActive" checked><span class="slider"></span></label>
       </div>
 
-      <!-- HISTORY -->
       <div class="sp-history hidden" id="spHistory">
         <div class="sp-history-head">Edit history</div>
         <div class="sp-history-list" id="spHistoryList"></div>
@@ -149,6 +170,42 @@
     <div class="sp-modal-foot">
       <button class="dp-btn ghost" id="spModalCancel">Cancel</button>
       <button class="dp-btn primary" id="spModalSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- GROUP EDIT MODAL -->
+<div id="grpModal" class="modal hidden">
+  <div class="modal-card sp-modal">
+    <div class="sp-modal-head">
+      <h2 id="grpModalTitle">Edit group</h2>
+      <button class="sp-modal-x" id="grpModalClose" aria-label="Close">✕</button>
+    </div>
+    <div class="sp-modal-body">
+      <div class="cfg-field">
+        <label>Group name</label>
+        <input type="text" id="grpFldName" />
+      </div>
+      <div class="cfg-grid-2">
+        <div class="cfg-field">
+          <label>Switchover Time</label>
+          <div class="cfg-input"><input type="number" step="1" id="grpFldTime"><span class="unit">min</span></div>
+        </div>
+        <div class="cfg-field">
+          <label>HMI Tag</label>
+          <input type="text" id="grpFldHmi" placeholder="e.g. BLW_GRP.SWITCHOVER_MIN" />
+        </div>
+      </div>
+      <div class="cfg-field">
+        <label>Members</label>
+        <div class="grp-members-picker">
+          <div class="ms-menu-list" id="grpMembersList"></div>
+        </div>
+      </div>
+    </div>
+    <div class="sp-modal-foot">
+      <button class="dp-btn ghost" id="grpModalCancel">Cancel</button>
+      <button class="dp-btn primary" id="grpModalSave">Save group</button>
     </div>
   </div>
 </div>

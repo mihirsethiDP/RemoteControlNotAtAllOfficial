@@ -408,19 +408,82 @@ function renderTankInternals(tankId){
 // =====================================================================
 // Toggle action (partial update — no SVG rebuild)
 // =====================================================================
+// Safety pre-check returns a list of warnings (not blockers)
+function safetyChecksFor(id, nextOn) {
+  const d = DEVICES[id]; if (!d) return [];
+  const warnings = [];
+  // Blower safety
+  if (d.type === "blower" && nextOn) {
+    const linkedDo = (window.SETPOINTS||[]).find(sp => sp.type === "DO" && sp.targets?.includes(id));
+    if (linkedDo) {
+      if (linkedDo.liveValue > linkedDo.hardMax) warnings.push({ icon:"🛑", title:"DO above maximum", body:`Live DO is ${linkedDo.liveValue} ${linkedDo.unit}, above the hard max ${linkedDo.hardMax} ${linkedDo.unit}. Starting the blower may be unnecessary.` });
+      if (linkedDo.liveValue < linkedDo.hardMin) warnings.push({ icon:"⚠", title:"DO below minimum", body:`Live DO is ${linkedDo.liveValue} ${linkedDo.unit}, below the hard min ${linkedDo.hardMin} ${linkedDo.unit}. Stopping or running the blower may be unsafe.` });
+    }
+    // Primary already running?
+    const peerOn = Object.entries(DEVICES).some(([pid,pd]) => pid !== id && pd.type === "blower" && pd.on);
+    if (peerOn) warnings.push({ icon:"⚠", title:"Primary blower running", body:"A primary blower is already running. Starting a standby unit may double aeration." });
+    if (!DEVICES.AIR1.on && !DEVICES.AIR2.on) warnings.push({ icon:"⛔", title:"No air-line open", body:"Both Air Inlet Line valves are closed. Blower will run against closed valves." });
+    if (DEVICES.DECANTER?.on) warnings.push({ icon:"⛔", title:"Decanter active", body:"Decanter is ON. Running blowers during decant conflicts with SBR cycle." });
+  }
+  // Pump safety — generic
+  if (d.type === "pump" && nextOn) {
+    if (id.startsWith("SLUDGE") && DEVICES.DECANTER?.on) warnings.push({ icon:"⛔", title:"SBR decanting", body:"SBR is in decant. Running sludge pumps now is unsafe." });
+    if (id.startsWith("RECIRC")) warnings.push({ icon:"⚠", title:"Verify basin level", body:"Re-circulation pumps require tank level within configured Level set point window." });
+  }
+  // Decanter
+  if (id === "DECANTER" && nextOn) {
+    const blowerOn = ["BLOWER1","BLOWER2","BLOWER3","BLOWER4"].some(b => DEVICES[b]?.on);
+    if (blowerOn) warnings.push({ icon:"⛔", title:"Blowers running", body:"A blower is ON. Starting decant during aeration conflicts with SBR cycle." });
+  }
+  // Inlet valves
+  if (id === "SBR1_INLET" && nextOn && DEVICES.DECANTER?.on) warnings.push({ icon:"⛔", title:"Decanter active", body:"Decanter is ON. Inlet valve should not open during decant." });
+  return warnings;
+}
+
+let pendingCmd = null;
 function attemptToggle(id, nextOn) {
   const d = DEVICES[id];
-  const block = checkInterlock(id, nextOn);
-  if (block) { toast(block, "bad"); return; }
+  const warns = safetyChecksFor(id, nextOn);
+  if (warns.length) {
+    pendingCmd = { id, nextOn, warns };
+    openSafetyModal(d, nextOn, warns);
+    return;
+  }
+  applyToggle(id, nextOn, /*overridden*/ false);
+}
+
+function applyToggle(id, nextOn, overridden) {
+  const d = DEVICES[id];
   d.on = nextOn;
-  toast(`${d.name} → ${nextOn?"ON":"OFF"}`, "ok");
+  toast(`${d.name} → ${nextOn?"ON":"OFF"}${overridden?" (override)":""}`, overridden ? "warn" : "ok");
   updateDeviceCells(id);
-  // Pulse the layout cell
+  window.audit?.({ kind: overridden ? "command-override" : "remote-engage", target:id, detail:`${d.name} → ${nextOn?"ON":"OFF"}` });
+  renderAuditChip();
   document.querySelectorAll(`#layoutHost g[data-cell-id]`).forEach(n => {
     const cell = LAYOUT?.idx[n.dataset.cellId];
     if (cell && cellDeviceId(cell) === id) n.classList.add("acted-on");
   });
   setTimeout(() => document.querySelectorAll(`#layoutHost g.acted-on`).forEach(n => n.classList.remove("acted-on")), 1800);
+}
+
+function openSafetyModal(d, nextOn, warns) {
+  const modal = document.getElementById("safetyModal");
+  document.getElementById("safetyTitle").textContent = `${nextOn?"Start":"Stop"} ${d.name}?`;
+  document.getElementById("safetySub").textContent = "Pre-checks against live PLC tags raised the following warnings. You may override.";
+  const list = document.getElementById("safetyList");
+  list.innerHTML = warns.map(w => `
+    <div class="safety-item">
+      <div class="safety-icon">${w.icon}</div>
+      <div class="safety-body"><div class="safety-title">${w.title}</div><div class="safety-body-text">${w.body}</div></div>
+    </div>`).join("");
+  modal.classList.remove("hidden");
+}
+function closeSafetyModal() { document.getElementById("safetyModal").classList.add("hidden"); pendingCmd = null; }
+function confirmSafetyOverride() {
+  if (!pendingCmd) return;
+  const { id, nextOn } = pendingCmd;
+  closeSafetyModal();
+  applyToggle(id, nextOn, true);
 }
 
 // =====================================================================
@@ -602,23 +665,36 @@ function promptApplySetpoint(spId, newValue) {
   const sp = (window.SETPOINTS||[]).find(x => x.id === spId);
   if (!sp) return;
   if (isNaN(newValue)) { toast("Enter a valid number", "warn"); return; }
-  if (newValue < sp.min || newValue > sp.max) { toast(`Value out of allowed range (${sp.min}–${sp.max} ${sp.unit})`, "bad"); return; }
   if (!sp.active) { toast("This set point is disabled", "warn"); return; }
-  pendingSp = { spId, newValue };
+
+  // Classify the value into zone
+  const zone = window.classifyZone ? window.classifyZone(newValue, sp) : "safe";
+  pendingSp = { spId, newValue, zone };
+
+  // Header severity
+  const noticeCard = document.querySelector("#spNotice .modal-card");
+  if (noticeCard) {
+    noticeCard.classList.remove("severity-warn","severity-bad");
+    if (zone === "warn") noticeCard.classList.add("severity-warn");
+    if (zone === "outside") noticeCard.classList.add("severity-bad");
+  }
+
+  const zoneCopy = zone === "outside"
+    ? `<div class="zone-banner bad">⚠ This value is OUTSIDE the configured hard limits (${sp.hardMin}–${sp.hardMax} ${sp.unit}). The system warns but allows override — proceed only if you understand the consequence.</div>`
+    : zone === "warn"
+    ? `<div class="zone-banner warn">⚠ This value enters the SOFT WARNING band (safe ${sp.softMin}–${sp.softMax} ${sp.unit}). PLC behaviour may be unexpected; you may override.</div>`
+    : "";
+
   document.getElementById("spNoticeBody").innerHTML = `
+    ${zoneCopy}
     You're about to overwrite the HMI tag
     <code style="background:#fafaf6;border:1px solid var(--line);padding:1px 6px;border-radius:4px;font-size:12px;color:var(--text)">${sp.hmiTag || "—"}</code>
     from <b>${sp.current} ${sp.unit}</b> to <b>${newValue} ${sp.unit}</b>.
-    <br><br>
-    The PLC will use the new value on its next evaluation tick. Linked equipment behaviour may change.
   `;
   const impact = document.getElementById("spImpactList");
   impact.innerHTML = `<div class="sp-impact-head">LINKED EQUIPMENT</div>` + (sp.targets||[]).map(t => {
     const dev = DEVICES[t];
-    return `<div class="sp-impact-row">
-      <span class="arrow">→</span>
-      <span class="target">${dev?dev.name:t}</span>
-    </div>`;
+    return `<div class="sp-impact-row"><span class="arrow">→</span><span class="target">${dev?dev.name:t}</span></div>`;
   }).join("");
   document.getElementById("spNotice").classList.remove("hidden");
 }
@@ -630,11 +706,39 @@ function applyPendingSp() {
   sp.current = pendingSp.newValue;
   sp.source  = `Operator override · ${new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"})}`;
   sp.history = sp.history || [];
-  sp.history.push({ ts: new Date().toISOString(), kind: "value", from, to: sp.current, who: "you" });
-  toast(`Set point override applied · ${sp.name} = ${sp.current} ${sp.unit}`, "ok");
+  const note = pendingSp.zone === "outside" ? "Override — outside hard limits" : pendingSp.zone === "warn" ? "Override — soft warning" : "";
+  sp.history.push({ ts: new Date().toISOString(), kind: "value", from, to: sp.current, who: "you", note });
+  window.audit?.({ kind:"setpoint-value", target:sp.id, detail:sp.hmiTag, from, to: sp.current, note });
+  toast(`Set point applied · ${sp.name} = ${sp.current} ${sp.unit}`, "ok");
   document.getElementById("spNotice").classList.add("hidden");
   pendingSp = null;
   refreshSetpointAllViews(sp.id);
+  renderAuditChip();
+}
+
+// =====================================================================
+// Live PLC value simulation — drift the liveValue with light noise
+// =====================================================================
+function startLivePoll() {
+  if (window._liveTimer) return;
+  window._liveTimer = setInterval(() => {
+    for (const sp of (window.SETPOINTS||[])) {
+      const noise = (Math.random() - 0.5) * (sp.hardMax - sp.hardMin) * 0.02;
+      const drift = (sp.current - sp.liveValue) * 0.18;
+      sp.liveValue = +(sp.liveValue + drift + noise).toFixed(2);
+      if (sp.liveValue < sp.hardMin) sp.liveValue = sp.hardMin;
+      if (sp.liveValue > sp.hardMax) sp.liveValue = sp.hardMax;
+      // Update DOM in place (don't full re-render)
+      document.querySelectorAll(`.spd-card[data-sp-id="${sp.id}"]`).forEach(card => {
+        const live = card.querySelector("[data-live]");
+        if (live) live.textContent = (typeof sp.liveValue === "number" && !Number.isInteger(sp.liveValue)) ? sp.liveValue.toFixed(2) : sp.liveValue;
+        const span = (sp.hardMax - sp.hardMin) || 1;
+        const pct = ((sp.liveValue - sp.hardMin) / span) * 100;
+        const liveMark = card.querySelector(".spd-band-live");
+        if (liveMark) liveMark.style.left = `calc(${pct}% - 1px)`;
+      });
+    }
+  }, 2200);
 }
 function refreshSetpointAllViews(spId) {
   const sp = (window.SETPOINTS||[]).find(x => x.id === spId); if (!sp) return;
@@ -760,6 +864,13 @@ function renderSpdCard(sp) {
   card.className = "spd-card" + (sp.active ? "" : " disabled");
   card.dataset.spId = sp.id;
   const typeShort = sp.type.replace(/\s.+/, "").slice(0,4).toUpperCase();
+  // Compute slider band positions
+  const span = (sp.hardMax - sp.hardMin) || 1;
+  const sMinPct = ((sp.softMin - sp.hardMin) / span) * 100;
+  const sMaxPct = ((sp.softMax - sp.hardMin) / span) * 100;
+  const livePct = ((sp.liveValue - sp.hardMin) / span) * 100;
+  const setPct  = ((sp.current   - sp.hardMin) / span) * 100;
+  const zone = window.classifyZone ? window.classifyZone(sp.current, sp) : "safe";
   card.innerHTML = `
     <div class="spd-card-head">
       <div class="spd-tile">${typeShort}</div>
@@ -772,41 +883,81 @@ function renderSpdCard(sp) {
       <span class="lbl">HMI</span>
       <code>${sp.hmiTag||"—"}</code>
     </div>
-    <div class="spd-value" data-mode="view">
-      <div>
-        <span class="v-num">${sp.current}</span>
-        <span class="v-unit">${sp.unit}</span>
-      </div>
-      <button class="v-edit" data-spd-edit>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
-        Edit
-      </button>
-    </div>
-    <div class="spd-foot">
-      <span>Range: <b>${sp.min} – ${sp.max} ${sp.unit}</b></span>
-      <span>${sp.source}</span>
-    </div>
-  `;
-  card.querySelector("[data-spd-edit]")?.addEventListener("click", () => enterSpdEdit(card, sp));
-  return card;
-}
 
-function enterSpdEdit(card, sp) {
-  const v = card.querySelector(".spd-value");
-  v.dataset.mode = "edit"; v.classList.add("editing");
-  v.innerHTML = `
-    <div class="v-input-wrap">
-      <input type="number" step="${sp.unit==='pH'?'0.1':sp.unit==='bar'?'0.1':sp.unit==='ppm'?'0.1':'1'}" value="${sp.current}" />
-      <span class="v-unit-inline">${sp.unit}</span>
+    <div class="spd-live-row">
+      <div class="spd-live"><span class="lbl">LIVE</span><b class="v" data-live>${sp.liveValue?.toFixed?.(2) ?? sp.liveValue}</b><span class="u">${sp.unit}</span><span class="pulse-dot"></span></div>
+      <div class="spd-set"><span class="lbl">SET</span><b class="v zone-${zone}" data-setdisp>${sp.current}</b><span class="u">${sp.unit}</span></div>
     </div>
-    <div class="v-actions">
-      <button class="btn-mini cancel">Cancel</button>
-      <button class="btn-mini save">Save</button>
+
+    <div class="spd-slider-wrap" data-zone="${zone}">
+      <div class="spd-band">
+        <div class="spd-band-seg low"  style="left:0;width:${sMinPct}%"></div>
+        <div class="spd-band-seg safe" style="left:${sMinPct}%;width:${sMaxPct-sMinPct}%"></div>
+        <div class="spd-band-seg high" style="left:${sMaxPct}%;width:${100-sMaxPct}%"></div>
+        <div class="spd-band-live"  style="left:calc(${livePct}% - 1px)" title="Live"></div>
+        <div class="spd-band-set"   style="left:calc(${setPct}% - 6px)" data-setmark></div>
+      </div>
+      <input type="range" class="spd-slider" data-slider
+        min="${sp.hardMin}" max="${sp.hardMax}"
+        step="${sp.unit==='pH' || sp.unit==='bar' || sp.unit==='ppm' ? '0.1' : '1'}"
+        value="${sp.current}" ${sp.active ? "" : "disabled"}/>
+      <div class="spd-ticks">
+        <span>${sp.hardMin}</span>
+        <span>${sp.softMin}</span>
+        <span>${sp.softMax}</span>
+        <span>${sp.hardMax}</span>
+      </div>
+    </div>
+
+    <div class="spd-num-row">
+      <div class="spd-num-input">
+        <input type="number" data-num
+          step="${sp.unit==='pH' || sp.unit==='bar' || sp.unit==='ppm' ? '0.1' : '1'}"
+          min="${sp.hardMin}" max="${sp.hardMax}"
+          value="${sp.current}" ${sp.active ? "" : "disabled"} />
+        <span class="u">${sp.unit}</span>
+      </div>
+      <button class="dp-btn primary sm" data-spd-save ${sp.active ? "" : "disabled"}>Save</button>
+    </div>
+
+    <div class="spd-foot">
+      <span>Hard: <b>${sp.hardMin}–${sp.hardMax} ${sp.unit}</b></span>
+      <span>Soft: <b>${sp.softMin}–${sp.softMax} ${sp.unit}</b></span>
     </div>
   `;
-  const inp = v.querySelector("input"); inp.focus(); inp.select();
-  v.querySelector(".cancel").addEventListener("click", () => card.replaceWith(renderSpdCard(sp)));
-  v.querySelector(".save").addEventListener("click", () => promptApplySetpoint(sp.id, parseFloat(inp.value)));
+
+  // Wire slider/num sync + live zone updates
+  const slider = card.querySelector("[data-slider]");
+  const num    = card.querySelector("[data-num]");
+  const setMark = card.querySelector("[data-setmark]");
+  const setDisp = card.querySelector("[data-setdisp]");
+  const wrap   = card.querySelector(".spd-slider-wrap");
+
+  const onMove = (val) => {
+    const z = window.classifyZone ? window.classifyZone(val, sp) : "safe";
+    wrap.dataset.zone = z;
+    setDisp.textContent = (typeof val === "number" && !Number.isInteger(val)) ? val.toFixed(1) : val;
+    setDisp.className = "v zone-" + z;
+    const pct = ((val - sp.hardMin) / span) * 100;
+    setMark.style.left = `calc(${Math.max(0,Math.min(100,pct))}% - 6px)`;
+  };
+
+  slider?.addEventListener("input", e => {
+    const v = parseFloat(e.target.value);
+    num.value = v;
+    onMove(v);
+  });
+  num?.addEventListener("input", e => {
+    const v = parseFloat(e.target.value);
+    if (!isNaN(v)) { slider.value = v; onMove(v); }
+  });
+
+  card.querySelector("[data-spd-save]")?.addEventListener("click", () => {
+    const v = parseFloat(num.value);
+    promptApplySetpoint(sp.id, v);
+  });
+
+  return card;
 }
 
 // =====================================================================
@@ -1000,8 +1151,90 @@ function tickClock(){
   $("#hdrTime").textContent = now.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit",hour12:true}).toUpperCase();
 }
 
+// =====================================================================
+// Audit log chip + drawer
+// =====================================================================
+function renderAuditChip() {
+  const chip = document.getElementById("auditChip");
+  if (!chip) return;
+  const n = (window.AUDIT_LOG||[]).length;
+  chip.textContent = `${n} event${n===1?"":"s"}`;
+}
+function openAuditDrawer() {
+  document.getElementById("auditDrawer")?.classList.remove("hidden");
+  renderAuditDrawerList();
+}
+function closeAuditDrawer() {
+  document.getElementById("auditDrawer")?.classList.add("hidden");
+}
+function renderAuditDrawerList() {
+  const host = document.getElementById("auditDrawerList");
+  if (!host) return;
+  const entries = (window.AUDIT_LOG||[]).slice().sort((a,b) => new Date(b.ts) - new Date(a.ts));
+  if (!entries.length) { host.innerHTML = `<div class="sp-drawer-empty">No events yet.</div>`; return; }
+  host.innerHTML = "";
+  for (const e of entries) {
+    const row = document.createElement("div");
+    row.className = "audit-d-item k-" + e.kind.split('-')[0];
+    const when = new Date(e.ts).toLocaleString("en-GB", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" });
+    const detail = e.from !== undefined && e.to !== undefined
+      ? `<code>${e.detail||""}</code> · <b>${e.from}</b> → <b>${e.to}</b>`
+      : (e.detail || "");
+    row.innerHTML = `
+      <div class="adi-head">
+        <span class="adi-kind">${({ "setpoint-value":"Set point change","setpoint-config":"Set point config","setpoint-create":"Created","remote-engage":"Remote engaged","remote-release":"Remote released","command-override":"Override","plc-write-fail":"PLC fail","group-config":"Group config" })[e.kind] || e.kind}</span>
+        <span class="adi-ts">${when}</span>
+      </div>
+      <div class="adi-body">${detail}${e.note?` · <i>${e.note}</i>`:""}</div>
+      <div class="adi-foot"><span>${e.who}</span><span>${e.target?`<code>${e.target}</code>`:""}</span></div>
+    `;
+    host.appendChild(row);
+  }
+}
+
+// =====================================================================
+// Sensor / equipment click on plant → open config popup (Phase 2)
+// Triggers when user clicks a NUMBER_SENSOR/LEVEL_SENSOR or a pump/blower
+// =====================================================================
+function openConfigPopupForElement(equipmentId, hint) {
+  // Find linked set points (or none) and route accordingly
+  const linked = (window.SETPOINTS||[]).filter(sp => sp.targets?.includes(equipmentId));
+  const modal = document.getElementById("cfgPopup");
+  if (!modal) return;
+  document.getElementById("cfgPopupTitle").textContent = hint ? hint : (DEVICES[equipmentId]?.name || "Configure");
+  const list = document.getElementById("cfgPopupList");
+  list.innerHTML = "";
+  if (linked.length) {
+    for (const sp of linked) {
+      const row = document.createElement("a");
+      row.className = "cfg-popup-row";
+      row.href = `configuration/?sp=${encodeURIComponent(sp.id)}`;
+      row.innerHTML = `
+        <span class="cfg-popup-type">${sp.type}</span>
+        <span class="cfg-popup-name">${sp.name}</span>
+        <span class="cfg-popup-chev">›</span>
+      `;
+      list.appendChild(row);
+    }
+  } else {
+    const empty = document.createElement("div");
+    empty.className = "cfg-popup-empty";
+    empty.textContent = "No set points configured for this equipment yet.";
+    list.appendChild(empty);
+  }
+  const adder = document.createElement("a");
+  adder.className = "cfg-popup-add";
+  adder.href = "configuration/";
+  adder.innerHTML = "<b>+ Configure a new set point</b><span>Opens Set Point Configuration</span>";
+  list.appendChild(adder);
+  modal.classList.remove("hidden");
+}
+function closeConfigPopup() { document.getElementById("cfgPopup")?.classList.add("hidden"); }
+
 document.addEventListener("DOMContentLoaded", () => {
   tickClock(); setInterval(tickClock, 30000);
+  startLivePoll();
+  renderAuditChip();
 
   // Page selector
   $("#pageSelect")?.addEventListener("change", e => switchPage(e.target.value));
@@ -1018,6 +1251,18 @@ document.addEventListener("DOMContentLoaded", () => {
   // Set point notice modal
   $("#spNoticeCancel")?.addEventListener("click", () => { document.getElementById("spNotice").classList.add("hidden"); pendingSp = null; });
   $("#spNoticeConfirm")?.addEventListener("click", applyPendingSp);
+
+  // Safety modal (warns on Start/Stop)
+  $("#safetyCancel")?.addEventListener("click", closeSafetyModal);
+  $("#safetyConfirm")?.addEventListener("click", confirmSafetyOverride);
+
+  // Audit chip + drawer
+  $("#openAudit")?.addEventListener("click", openAuditDrawer);
+  $("#closeAudit")?.addEventListener("click", closeAuditDrawer);
+  window.onAuditAdded = () => { renderAuditChip(); if (!document.getElementById("auditDrawer")?.classList.contains("hidden")) renderAuditDrawerList(); };
+
+  // Config popup (sensor click on plant)
+  $("#cfgPopupClose")?.addEventListener("click", closeConfigPopup);
 
   // Set Points filters
   $("#spSearch")?.addEventListener("input", renderSetpointsPage);

@@ -99,6 +99,129 @@
   padding: 40px 20px; text-align: center; color: var(--muted); font-size: 13px;
 }
 
+/* TABS */
+.cfg-tabs {
+  display: flex; gap: 4px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; padding: 6px; margin-bottom: 14px;
+}
+.cfg-tab {
+  flex: 0 0 auto; padding: 8px 16px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--muted); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: .12s;
+}
+.cfg-tab:hover { color: var(--text); }
+.cfg-tab.active { background: var(--primary); color: #fff; box-shadow: 0 2px 6px rgba(23,61,117,.2); }
+
+.cfg-pane.hidden { display: none; }
+
+/* Schema-section label */
+.cfg-section-label {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin: 10px 0 8px;
+  font-size: 11px; letter-spacing: .6px; text-transform: uppercase;
+  color: var(--muted); font-weight: 700;
+}
+.cfg-section-label .cfg-help { font-size: 11px; color: var(--muted); font-weight: 500; letter-spacing: 0; text-transform: none; }
+
+.cfg-grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; }
+
+/* Range band tags in list */
+.band-tag {
+  font-size: 9px; letter-spacing: .6px; text-transform: uppercase;
+  padding: 1px 6px; border-radius: 3px; font-weight: 700; margin-right: 5px;
+}
+.band-tag.hard { background: #fdeaea; color: #aa1c1c; }
+.band-tag.soft { background: #fff5e0; color: #b87b16; }
+
+/* Band preview */
+.cfg-bandpreview { margin-top: 12px; }
+.band-bar {
+  position: relative; height: 12px; border-radius: 6px; overflow: hidden;
+  background: #fdeaea;
+}
+.band-bar .band-seg { position: absolute; top: 0; bottom: 0; }
+.band-bar .band-seg.hard-low  { background: linear-gradient(90deg,#fdeaea,#fff5e0); }
+.band-bar .band-seg.safe      { background: linear-gradient(180deg,#d9f4df,#c4ecd0); }
+.band-bar .band-seg.hard-high { background: linear-gradient(90deg,#fff5e0,#fdeaea); }
+.band-labels {
+  display: flex; justify-content: space-between; margin-top: 6px;
+  font-size: 10.5px; color: var(--text);
+}
+.band-labels span { display: flex; flex-direction: column; align-items: center; font-weight: 700; }
+.band-labels small { font-size: 9.5px; color: var(--muted); font-weight: 500; margin-top: 2px; letter-spacing: .4px; text-transform: uppercase; }
+.band-hint { padding: 10px; background: var(--surface-2); border: 1px dashed var(--line); border-radius: 6px; font-size: 11.5px; color: var(--muted); }
+
+/* LT layout */
+.cfg-lt-block { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+.cfg-lt-title { font-size: 11.5px; font-weight: 700; color: var(--text); margin-bottom: 8px; letter-spacing: .3px; }
+
+.cfg-info-inline {
+  padding: 12px; background: var(--surface-2); border: 1px dashed var(--line);
+  border-radius: 6px; font-size: 12px; color: var(--text-2);
+}
+.cfg-info-inline a { color: var(--primary-2); font-weight: 600; }
+
+/* Required tag on labels */
+.req {
+  font-size: 9px; letter-spacing: .5px; padding: 1px 5px; border-radius: 3px;
+  background: #fdeaea; color: #aa1c1c; font-weight: 700; margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* GROUPS */
+.cfg-groups-head { padding: 14px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 12px; }
+.cfg-groups-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.cfg-groups-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.grp-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 12px; }
+.grp-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 16px; display: flex; flex-direction: column; gap: 12px;
+}
+.grp-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.grp-card-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.grp-card-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.grp-members { display: flex; flex-wrap: wrap; gap: 5px; }
+.grp-members .ms-chip { background: #eef2f7; color: var(--primary); padding: 3px 9px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.grp-switch {
+  display: flex; justify-content: space-between; align-items: center;
+  background: linear-gradient(180deg, #f0f4fb, #fafaf6);
+  border: 1px solid #d6e0f2; border-radius: 8px; padding: 10px 14px;
+}
+.grp-switch-lbl { font-size: 11px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; font-weight: 700; }
+.grp-switch-val { font-family: ui-monospace, monospace; font-size: 22px; font-weight: 700; color: var(--primary); }
+.grp-switch-val .unit { font-size: 12px; color: var(--muted); margin-left: 4px; font-family: inherit; font-weight: 600; }
+.grp-members-picker { border: 1px solid var(--line); border-radius: 6px; max-height: 220px; overflow: auto; padding: 4px; background: #fff; }
+
+/* AUDIT */
+.audit-list { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.audit-row {
+  display: grid; grid-template-columns: 140px 100px 160px 180px 1fr;
+  gap: 12px; align-items: center; padding: 10px 16px;
+  border-bottom: 1px solid var(--line-2); font-size: 12.5px;
+}
+.audit-row:last-child { border-bottom: 0; }
+.audit-head {
+  background: #f3eee3; font-size: 10.5px; letter-spacing: .8px;
+  text-transform: uppercase; color: var(--muted); font-weight: 700;
+  padding: 12px 16px;
+}
+.audit-ts { color: var(--text-2); font-family: ui-monospace, monospace; font-size: 11.5px; }
+.audit-user { font-weight: 600; color: var(--text); }
+.audit-target code, .audit-detail code {
+  font-family: ui-monospace, monospace; font-size: 11px;
+  background: #fafaf6; border: 1px solid var(--line); padding: 1px 6px; border-radius: 3px;
+}
+.audit-kind-pill {
+  font-size: 10px; letter-spacing: .4px; padding: 3px 8px; border-radius: 4px;
+  font-weight: 700; display: inline-block;
+}
+.audit-kind-pill.k-setpoint { background: #eef2f7; color: var(--primary); }
+.audit-kind-pill.k-remote   { background: #ece4ff; color: #5a3fbe; }
+.audit-kind-pill.k-command  { background: #fff5e0; color: #b87b16; }
+.audit-kind-pill.k-plc      { background: #fdeaea; color: #aa1c1c; }
+.audit-kind-pill.k-group    { background: #e9f7ec; color: #16903a; }
+
 /* MODAL — compact */
 .modal-card.sp-modal {
   width: 460px; max-width: 94vw; padding: 0; text-align: left;

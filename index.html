@@ -68,6 +68,11 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9" stroke-dasharray="2 4"/></svg>
       Group Control
     </button>
+    <button class="dp-audit-chip" id="openAudit" title="Audit log">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="14" x2="15" y2="14"/><line x1="9" y1="18" x2="13" y2="18"/></svg>
+      <span class="dp-audit-label">Audit</span>
+      <span class="dp-audit-num" id="auditChip">0</span>
+    </button>
     <button class="dp-group-btn alt" id="openSetPoints">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h6"/><path d="M14 12h6"/><circle cx="12" cy="12" r="2"/><path d="M12 6V3"/><path d="M12 21v-3"/></svg>
       Set Points
@@ -215,6 +220,52 @@
       <span>TLS 1.3 · AES-256-GCM</span>
       <span id="rlFootStatus">handshake in progress…</span>
     </div>
+  </div>
+</div>
+
+<!-- SAFETY PRE-CHECK MODAL -->
+<div id="safetyModal" class="modal hidden">
+  <div class="modal-card sp-modal">
+    <div class="sp-modal-head safety-head">
+      <h2 id="safetyTitle">Confirm command?</h2>
+    </div>
+    <div class="sp-modal-body">
+      <p class="muted" id="safetySub">Pre-checks against live PLC tags raised the following warnings. You may override.</p>
+      <div id="safetyList"></div>
+    </div>
+    <div class="sp-modal-foot">
+      <button class="dp-btn ghost" id="safetyCancel">Cancel</button>
+      <button class="dp-btn danger" id="safetyConfirm">Override &amp; proceed</button>
+    </div>
+  </div>
+</div>
+
+<!-- AUDIT LOG DRAWER -->
+<aside id="auditDrawer" class="dp-side wide hidden" aria-label="Audit log">
+  <div class="dp-side-head">
+    <div class="dp-side-head-left">
+      <span class="dp-side-icon-tile">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      </span>
+      <div>
+        <div class="dp-side-overline">AUDIT LOG</div>
+        <div class="dp-side-title">All events</div>
+        <div class="dp-side-sub">Every set-point change, remote action and override</div>
+      </div>
+    </div>
+    <button class="dp-side-close" id="closeAudit">✕</button>
+  </div>
+  <div class="audit-drawer-body" id="auditDrawerList"></div>
+</aside>
+
+<!-- CONFIG POPUP (sensor click on plant) -->
+<div id="cfgPopup" class="modal hidden">
+  <div class="modal-card sp-modal">
+    <div class="sp-modal-head">
+      <h2 id="cfgPopupTitle">Configure</h2>
+      <button class="sp-modal-x" id="cfgPopupClose" aria-label="Close">✕</button>
+    </div>
+    <div class="sp-modal-body" id="cfgPopupList"></div>
   </div>
 </div>
 
