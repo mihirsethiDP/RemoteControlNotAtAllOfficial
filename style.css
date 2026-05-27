@@ -674,6 +674,107 @@ a:hover { text-decoration: underline; }
 
 .sp-drawer-empty { padding: 40px 20px; text-align: center; color: var(--muted); font-size: 13px; }
 
+/* =====================================================================
+   Set Point slider editor (Phase-2 §3.1)
+   ===================================================================== */
+.spd-readings {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  background: #fafaf6; border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px;
+}
+.spd-reading { display: flex; align-items: center; gap: 6px; }
+.spd-reading .lbl {
+  font-size: 9.5px; letter-spacing: 1.3px; color: var(--muted);
+  font-weight: 700; padding: 1px 6px; border-radius: 3px; background: #f0eadf;
+}
+.spd-reading .v {
+  font-family: ui-monospace, "SF Mono", monospace;
+  font-size: 16px; font-weight: 700; color: var(--text);
+}
+.spd-reading .u { font-size: 11px; color: var(--muted); font-weight: 600; }
+.spd-reading .live-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--ok); margin-left: auto;
+  box-shadow: 0 0 0 0 rgba(26,164,74,.6); animation: dotpulse 1.6s infinite;
+}
+.zone-safe    { color: var(--ok); }
+.zone-caution { color: var(--warn); }
+.zone-outside { color: var(--bad); }
+
+.spd-slider { position: relative; padding-top: 4px; }
+.spd-track {
+  position: relative; height: 10px; border-radius: 5px;
+  background: var(--surface-2); border: 1px solid var(--line); overflow: visible;
+}
+.spd-zone { position: absolute; top: 0; bottom: 0; }
+.spd-zone.caution { background: linear-gradient(90deg,#fff5e0,#fdeaea); }
+.spd-zone.safe    { background: linear-gradient(180deg,#d9f4df,#c4ecd0); }
+.spd-zone:first-child { border-radius: 5px 0 0 5px; }
+.spd-zone:last-child  { border-radius: 0 5px 5px 0; }
+
+.spd-live-marker {
+  position: absolute; top: -4px; bottom: -4px; width: 2px;
+  background: var(--text); z-index: 2; border-radius: 1px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.7);
+}
+.spd-set-marker {
+  position: absolute; top: -4px; bottom: -4px; width: 12px;
+  background: var(--primary); border-radius: 3px; z-index: 3;
+  box-shadow: 0 0 6px rgba(23,61,117,.4), 0 0 0 2px #fff;
+  transition: left .12s ease-out;
+}
+.spd-set-marker[data-zone="caution"] { background: var(--warn);  box-shadow: 0 0 6px rgba(214,138,20,.6), 0 0 0 2px #fff; }
+.spd-set-marker[data-zone="outside"] { background: var(--bad);   box-shadow: 0 0 6px rgba(211,54,54,.6), 0 0 0 2px #fff; }
+
+.spd-slider input[type="range"] {
+  width: 100%; appearance: none; background: transparent;
+  margin: 8px 0 -6px; height: 22px; cursor: pointer;
+}
+.spd-slider input[type="range"]::-webkit-slider-thumb {
+  appearance: none; width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; border: 2px solid var(--primary);
+  box-shadow: 0 2px 6px rgba(23,61,117,.3); cursor: grab;
+}
+.spd-slider input[type="range"]::-moz-range-thumb {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; border: 2px solid var(--primary); cursor: grab;
+}
+.spd-slider input[type="range"]:disabled { opacity: .5; cursor: not-allowed; }
+
+.spd-ticks {
+  display: flex; justify-content: space-between; margin-top: 12px;
+  font-size: 10px; color: var(--muted); font-family: ui-monospace, monospace;
+}
+
+.spd-num-row { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+.spd-num-input {
+  flex: 1; display: flex; align-items: center; gap: 6px;
+  border: 1px solid var(--line); border-radius: 6px; background: #fff;
+  padding: 4px 4px 4px 10px;
+}
+.spd-num-input input {
+  width: 100%; border: 0; outline: 0; background: transparent;
+  font-family: ui-monospace, monospace; font-size: 14px; font-weight: 700; color: var(--text);
+}
+.spd-num-input .u { font-size: 11px; color: var(--muted); padding: 0 6px; font-weight: 600; }
+
+/* LT (Transfer Pump): two-column 4-input layout */
+.spd-lt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.spd-lt-block {
+  background: #fafaf6; border: 1px solid var(--line); border-radius: 8px; padding: 10px;
+}
+.spd-lt-title { font-size: 11px; font-weight: 700; color: var(--text); margin-bottom: 8px; letter-spacing: .3px; }
+.spd-lt-row { display: grid; grid-template-columns: 36px 1fr; gap: 6px; align-items: center; margin-bottom: 6px; }
+.spd-lt-row:last-child { margin-bottom: 0; }
+.spd-lt-row label { font-size: 11px; color: var(--muted); font-weight: 700; }
+
+/* Soft-warning banner inside override modal */
+.modal-card.severity-warn { border-top: 4px solid var(--warn); }
+.zone-banner {
+  padding: 10px 12px; border-radius: 6px; margin-bottom: 12px;
+  font-size: 12.5px; font-weight: 600;
+}
+.zone-banner.warn { background: var(--warn-bg); border: 1px solid var(--warn-border); color: #7a5210; }
+
 /* ============================================================
    SET POINT CONTROL PANEL (legacy — kept for compat, no longer routed)
    ============================================================ */
