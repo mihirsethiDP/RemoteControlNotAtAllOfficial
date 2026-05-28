@@ -689,6 +689,33 @@ a:hover { text-decoration: underline; }
 .spd-readout-cell .v.muted { color: var(--text-2); font-weight: 500; }
 .spd-card-actions { display: flex; justify-content: flex-end; }
 
+/* ===== Inline progressive disclosure (Set Points drawer) ===== */
+.spd-card { transition: border-color .15s, box-shadow .15s; }
+.spd-card.expanded {
+  border-color: var(--primary-2);
+  box-shadow: 0 2px 12px rgba(42,108,240,.10);
+}
+.spd-card-head { cursor: pointer; }
+.spd-card.disabled .spd-card-head { cursor: not-allowed; }
+.spd-chev {
+  margin-left: auto; color: var(--muted); transition: transform .2s;
+  font-size: 13px; flex: none;
+}
+.spd-card.expanded .spd-chev { transform: rotate(180deg); color: var(--primary-2); }
+
+.spd-expand {
+  max-height: 0; overflow: hidden; padding: 0;
+  transition: max-height .25s ease, padding .25s ease;
+}
+.spd-card.expanded .spd-expand {
+  max-height: 600px; padding: 12px 0 4px;
+  border-top: 1px solid var(--line); margin-top: 4px;
+}
+.spd-expand-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line);
+}
+
 /* Setpoint Control popup */
 .modal-card.sc-modal {
   width: 520px; max-width: 94vw; padding: 0; text-align: left;

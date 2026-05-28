@@ -7,7 +7,7 @@ window.SP_TYPES = ["DO", "PT", "LT", "Flow", "Switchover Time"];
 window.SP_TYPE_UNIT = {
   "DO":              "mg/L",
   "PT":              "bar",
-  "LT":              "m",
+  "LT":              "%",
   "Flow":            "m³/hr",
   "Switchover Time": "min",
 };
@@ -50,14 +50,14 @@ window.SETPOINTS = [
     equipment:"Transfer Pump · UF Feed",
     targets:["RECIRC_A1","RECIRC_A2"],
     hmiTag:"LT_201.OP_RANGE",
-    unit:"m",
-    intakeMin: 0.5, intakeMax: 3.5,
-    outletMin: 0.8, outletMax: 3.2,
+    unit:"%",
+    intakeMin: 20, intakeMax: 85,
+    outletMin: 25, outletMax: 80,
     active:true, source:"PLC default",
     history: _hist([
       { ts:"2026-05-12T09:00:00Z", kind:"value",
-        from:"intake 0.4–3.5, outlet 0.7–3.0",
-        to:"intake 0.5–3.5, outlet 0.8–3.2",
+        from:"intake 25–85%, outlet 30–78%",
+        to:"intake 20–85%, outlet 25–80%",
         who:"op-mihir", note:"Raised intake floor to avoid cavitation" },
     ]) },
 

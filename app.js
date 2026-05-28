@@ -781,15 +781,16 @@ function renderSpdCard(sp) {
   card.dataset.spId = sp.id;
   const typeShort = sp.type.split(" ")[0].slice(0,3).toUpperCase();
   card.innerHTML = `
-    <div class="spd-card-head">
+    <div class="spd-card-head" data-spd-toggle>
       <div class="spd-tile">${typeShort}</div>
       <div class="spd-meta">
         <div class="spd-name">${sp.name}</div>
         <div class="spd-eq">${sp.equipment}</div>
       </div>
+      <span class="spd-chev" aria-hidden="true">▾</span>
     </div>
-    <div class="spd-hmi"><span class="lbl">HMI</span><code>${sp.hmiTag||"—"}</code></div>
-    <div class="spd-readout">
+    <div class="spd-hmi" data-spd-toggle><span class="lbl">HMI</span><code>${sp.hmiTag||"—"}</code></div>
+    <div class="spd-readout" data-spd-toggle>
       <div class="spd-readout-cell">
         <span class="lbl">CURRENT</span>
         <span class="v">${spLiveText(sp)}</span>
@@ -799,12 +800,75 @@ function renderSpdCard(sp) {
         <span class="v muted">${spRangeText(sp)}</span>
       </div>
     </div>
-    <div class="spd-card-actions">
-      <button class="dp-btn primary sm" data-spd-control ${sp.active?"":"disabled"}>Open control</button>
-    </div>
+    <div class="spd-expand"></div>
   `;
-  card.querySelector("[data-spd-control]")?.addEventListener("click", e => { e.stopPropagation(); openSetpointControlPopup(sp.id); });
+  // Click anywhere on the head / hmi / readout toggles expansion
+  card.querySelectorAll("[data-spd-toggle]").forEach(el => {
+    el.addEventListener("click", e => {
+      if (!sp.active) return;
+      e.stopPropagation();
+      toggleSpdCard(card, sp);
+    });
+  });
   return card;
+}
+
+function toggleSpdCard(card, sp) {
+  const isOpen = card.classList.contains("expanded");
+  // Close any other expanded card in the drawer
+  document.querySelectorAll(".spd-card.expanded").forEach(c => {
+    if (c !== card) {
+      c.classList.remove("expanded");
+      c.querySelector(".spd-expand").innerHTML = "";
+    }
+  });
+  if (isOpen) {
+    card.classList.remove("expanded");
+    card.querySelector(".spd-expand").innerHTML = "";
+    return;
+  }
+  card.classList.add("expanded");
+  renderSpdExpansion(card, sp);
+}
+
+function renderSpdExpansion(card, sp) {
+  const host = card.querySelector(".spd-expand");
+  host.innerHTML = "";
+  const editor = (sp.type === "LT") ? buildLtEditor(sp) : buildSliderEditor(sp);
+  host.appendChild(editor);
+  // Actions row
+  const actions = document.createElement("div");
+  actions.className = "spd-expand-actions";
+  actions.innerHTML = `
+    <button class="dp-btn ghost sm" data-spd-cancel>Cancel</button>
+    <button class="dp-btn primary sm" data-spd-apply>Apply setpoint</button>
+  `;
+  host.appendChild(actions);
+  actions.querySelector("[data-spd-cancel]").addEventListener("click", e => { e.stopPropagation(); toggleSpdCard(card, sp); });
+  actions.querySelector("[data-spd-apply]").addEventListener("click", e => { e.stopPropagation(); applyFromExpansion(card, sp); });
+}
+
+function applyFromExpansion(card, sp) {
+  if (sp.type === "LT") {
+    const vals = {};
+    card.querySelectorAll("[data-lt]").forEach(i => vals[i.dataset.lt] = parseFloat(i.value));
+    if (Object.values(vals).some(isNaN)) return toast("All four levels must be numbers", "bad");
+    if (vals.intakeMax <= vals.intakeMin) return toast("Intake Max must be greater than Intake Min", "bad");
+    if (vals.outletMax <= vals.outletMin) return toast("Outlet Max must be greater than Outlet Min", "bad");
+    const outOfRange =
+      (vals.intakeMin < (sp.intakeMin*0.5) || vals.intakeMax > (sp.intakeMax*1.5) ||
+       vals.outletMin < (sp.outletMin*0.5) || vals.outletMax > (sp.outletMax*1.5));
+    if (outOfRange) { showWarningPopup(sp, vals, true); return; }
+    commitLtChange(sp, vals);
+    return;
+  }
+  const num = card.querySelector("[data-sc-num]");
+  const v = parseFloat(num.value);
+  if (isNaN(v)) return toast("Enter a valid number", "bad");
+  const sliderMin = sp.min == null ? -Infinity : sp.min;
+  const sliderMax = sp.max;
+  if (v < sliderMin || v > sliderMax) { showWarningPopup(sp, v, false); return; }
+  commitSinglePointChange(sp, v);
 }
 
 // =====================================================================
@@ -933,7 +997,6 @@ function commitSinglePointChange(sp, v) {
   sp.history = sp.history || [];
   sp.history.push({ ts: new Date().toISOString(), kind:"value", from, to:v, who:"op-mihir" });
   toast(`Saved: ${sp.name} → ${v} ${sp.unit}`, "ok");
-  closeSetpointControlPopup();
   refreshSetpointAllViews(sp.id);
 }
 function commitLtChange(sp, vals) {
@@ -942,11 +1005,10 @@ function commitLtChange(sp, vals) {
   sp.source = `Operator override · ${new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"})}`;
   sp.history = sp.history || [];
   sp.history.push({ ts: new Date().toISOString(), kind:"value",
-    from: `intake ${from.intakeMin}–${from.intakeMax}, outlet ${from.outletMin}–${from.outletMax}`,
-    to:   `intake ${vals.intakeMin}–${vals.intakeMax}, outlet ${vals.outletMin}–${vals.outletMax}`,
+    from: `intake ${from.intakeMin}–${from.intakeMax}${sp.unit}, outlet ${from.outletMin}–${from.outletMax}${sp.unit}`,
+    to:   `intake ${vals.intakeMin}–${vals.intakeMax}${sp.unit}, outlet ${vals.outletMin}–${vals.outletMax}${sp.unit}`,
     who: "op-mihir" });
   toast(`Saved: ${sp.name}`, "ok");
-  closeSetpointControlPopup();
   refreshSetpointAllViews(sp.id);
 }
 
@@ -1187,10 +1249,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#spNoticeCancel")?.addEventListener("click", () => { document.getElementById("spNotice").classList.add("hidden"); pendingSp = null; });
   $("#spNoticeConfirm")?.addEventListener("click", applyPendingSp);
 
-  // Setpoint Control popup
-  $("#scClose")?.addEventListener("click", closeSetpointControlPopup);
-  $("#scCancel")?.addEventListener("click", closeSetpointControlPopup);
-  $("#scApply")?.addEventListener("click", applyFromControlPopup);
+  // Warning override modal (shared)
   $("#scWarnCancel")?.addEventListener("click", cancelWarn);
   $("#scWarnOverride")?.addEventListener("click", overrideWarn);
 
