@@ -100,13 +100,6 @@ function renderList() {
 }
 
 // ----------- Modal -----------
-function schemaForType(t) {
-  if (t === "PT (Pressure Transmitter)") return "pt";
-  if (t === "LT (Transfer Pump)") return "lt";
-  if (t === "Switchover Time") return "switchover";
-  return "thresholds";
-}
-
 function openSpModal(spId) {
   editingSpId = spId;
   const sp = spId ? (window.SETPOINTS||[]).find(x => x.id === spId) : null;
@@ -114,72 +107,13 @@ function openSpModal(spId) {
   $("#mType").value = sp?.type || "Level";
   $("#mName").value = sp?.name || "";
   $("#mHmiTag").value = sp?.hmiTag || "";
+  $("#mMin").value = sp?.min ?? "";
+  $("#mMax").value = sp?.max ?? "";
   $("#mActive").checked = sp ? !!sp.active : true;
-  renderSchemaFields(sp);
+  updateUnitLabels();
   renderEquipmentChips(sp?.targets || []);
   renderHistorySection(sp);
-  updateUnitLabels();
   $("#spModal").classList.remove("hidden");
-}
-
-function renderSchemaFields(sp) {
-  const host = $("#mSchemaFields"); if (!host) return;
-  const schema = schemaForType($("#mType").value);
-  if (schema === "lt") {
-    host.innerHTML = `
-      <div class="cfg-section-label"><span>Transfer pump tank levels</span><span class="cfg-help">All four values are required.</span></div>
-      <div class="cfg-lt-block">
-        <div class="cfg-lt-title">Intake Tank</div>
-        <div class="cfg-grid-2">
-          <div class="cfg-field"><label>Min Intake Level</label>
-            <div class="cfg-input"><input type="number" step="any" id="fldIntakeMin" value="${sp?.intakeMin ?? ""}"><span class="unit m-unit-suffix">—</span></div></div>
-          <div class="cfg-field"><label>Max Intake Level</label>
-            <div class="cfg-input"><input type="number" step="any" id="fldIntakeMax" value="${sp?.intakeMax ?? ""}"><span class="unit m-unit-suffix">—</span></div></div>
-        </div>
-      </div>
-      <div class="cfg-lt-block">
-        <div class="cfg-lt-title">Outlet Tank</div>
-        <div class="cfg-grid-2">
-          <div class="cfg-field"><label>Min Outlet Level</label>
-            <div class="cfg-input"><input type="number" step="any" id="fldOutletMin" value="${sp?.outletMin ?? ""}"><span class="unit m-unit-suffix">—</span></div></div>
-          <div class="cfg-field"><label>Max Outlet Level</label>
-            <div class="cfg-input"><input type="number" step="any" id="fldOutletMax" value="${sp?.outletMax ?? ""}"><span class="unit m-unit-suffix">—</span></div></div>
-        </div>
-      </div>
-    `;
-  } else if (schema === "pt") {
-    host.innerHTML = `
-      <div class="cfg-section-label"><span>Pressure thresholds</span><span class="cfg-help">Maximum is required; minimum is optional per plant.</span></div>
-      <div class="cfg-grid-2">
-        <div class="cfg-field">
-          <label>Max Pressure <span class="req">required</span></label>
-          <div class="cfg-input"><input type="number" step="any" id="mMax" value="${sp?.max ?? ""}"><span class="unit m-unit-suffix">—</span></div>
-        </div>
-        <div class="cfg-field">
-          <label>Min Pressure (optional)</label>
-          <div class="cfg-input"><input type="number" step="any" id="mMin" value="${sp?.min ?? ""}"><span class="unit m-unit-suffix">—</span></div>
-        </div>
-      </div>
-    `;
-  } else if (schema === "switchover") {
-    host.innerHTML = `
-      <div class="cfg-section-label"><span>Switchover Time</span><span class="cfg-help">Applies to all linked equipment as one duty/standby group.</span></div>
-      <div class="cfg-field">
-        <label>Switchover duration</label>
-        <div class="cfg-input"><input type="number" step="1" id="mSwitchover" value="${sp?.switchoverTime ?? ""}"><span class="unit m-unit-suffix">min</span></div>
-      </div>
-    `;
-  } else {
-    // thresholds: generic Min/Max
-    host.innerHTML = `
-      <div class="cfg-grid-2">
-        <div class="cfg-field"><label>Min threshold</label>
-          <div class="cfg-input"><input type="number" step="any" id="mMin" value="${sp?.min ?? ""}"><span class="unit m-unit-suffix">—</span></div></div>
-        <div class="cfg-field"><label>Max threshold</label>
-          <div class="cfg-input"><input type="number" step="any" id="mMax" value="${sp?.max ?? ""}"><span class="unit m-unit-suffix">—</span></div></div>
-      </div>
-    `;
-  }
 }
 
 function renderHistorySection(sp) {
@@ -225,18 +159,11 @@ function closeSpModal() {
   $("#spModal").classList.add("hidden");
 }
 
-const TYPE_UNIT = {
-  "Level": "%", "DO": "ppm",
-  "Differential Pressure": "bar", "Differential Pressure (calculated)": "bar",
-  "pH": "pH", "FRC": "ppm", "ORP": "mV", "Flow": "m³/hr", "Time": "s",
-  "PT (Pressure Transmitter)": "bar",
-  "LT (Transfer Pump)": "m",
-  "Switchover Time": "min",
-};
 function updateUnitLabels() {
   const t = $("#mType").value;
-  const u = TYPE_UNIT[t] || (window.SP_TYPE_DEFAULTS||{})[t]?.unit || "";
-  document.querySelectorAll(".m-unit-suffix").forEach(el => el.textContent = u || "—");
+  const u = (window.SP_TYPE_DEFAULTS||{})[t]?.unit || "";
+  $("#mUnitMin").textContent = u || "—";
+  $("#mUnitMax").textContent = u || "—";
   const disp = $("#mUnitDisplay");
   if (disp) disp.innerHTML = u ? `<b>${u}</b><span class="ud-sub">${typeBlurb(t)}</span>` : "—";
 }
@@ -339,78 +266,50 @@ function saveSpFromModal() {
   const type = $("#mType").value;
   const name = $("#mName").value.trim();
   const hmiTag = $("#mHmiTag").value.trim();
+  const min = parseFloat($("#mMin").value);
+  const max = parseFloat($("#mMax").value);
   const active = $("#mActive").checked;
   const targets = Array.from(msSelected);
-  const schema = schemaForType(type);
 
   if (!name) return toast("Name is required", "bad");
   if (!hmiTag) return toast("HMI Set Point Tag is required", "bad");
+  if (isNaN(min) || isNaN(max)) return toast("Min and Max must be numbers", "bad");
+  if (max <= min) return toast("Max must be greater than Min", "bad");
   if (!targets.length) return toast("Link at least one equipment", "bad");
 
-  // Schema-driven fields
-  const fields = {};
-  if (schema === "lt") {
-    const a = parseFloat($("#fldIntakeMin").value);
-    const b = parseFloat($("#fldIntakeMax").value);
-    const c = parseFloat($("#fldOutletMin").value);
-    const d = parseFloat($("#fldOutletMax").value);
-    if ([a,b,c,d].some(isNaN)) return toast("All four levels must be numbers", "bad");
-    if (b <= a) return toast("Intake Max must be greater than Intake Min", "bad");
-    if (d <= c) return toast("Outlet Max must be greater than Outlet Min", "bad");
-    Object.assign(fields, { intakeMin:a, intakeMax:b, outletMin:c, outletMax:d, min:a, max:b });
-  } else if (schema === "pt") {
-    const max = parseFloat($("#mMax").value);
-    const minRaw = $("#mMin").value;
-    const min = minRaw === "" ? null : parseFloat(minRaw);
-    if (isNaN(max)) return toast("Max pressure is required", "bad");
-    if (min !== null && !isNaN(min) && max <= min) return toast("Max must be greater than Min", "bad");
-    Object.assign(fields, { max, min: (min ?? 0) });
-  } else if (schema === "switchover") {
-    const t = parseFloat($("#mSwitchover").value);
-    if (isNaN(t) || t <= 0) return toast("Switchover time must be a positive number", "bad");
-    Object.assign(fields, { switchoverTime: t, min: 1, max: t * 4 });
-  } else {
-    const min = parseFloat($("#mMin").value);
-    const max = parseFloat($("#mMax").value);
-    if (isNaN(min) || isNaN(max)) return toast("Min and Max must be numbers", "bad");
-    if (max <= min) return toast("Max must be greater than Min", "bad");
-    Object.assign(fields, { min, max });
-  }
-
-  const unit = TYPE_UNIT[type] || (window.SP_TYPE_DEFAULTS||{})[type]?.unit || "";
+  const unit = (window.SP_TYPE_DEFAULTS||{})[type]?.unit || "";
   const list = window.SETPOINTS || (window.SETPOINTS = []);
 
   if (editingSpId) {
     const sp = list.find(x => x.id === editingSpId);
     if (sp) {
+      // Record config history if min/max/active actually changed
       const changes = {};
-      for (const k of Object.keys(fields)) {
-        if (sp[k] !== fields[k]) changes[k] = { from: sp[k], to: fields[k] };
-      }
+      if (sp.min !== min) changes.min = { from: sp.min, to: min };
+      if (sp.max !== max) changes.max = { from: sp.max, to: max };
       if (sp.active !== active) changes.active = { from: sp.active, to: active };
       if (Object.keys(changes).length) {
         sp.history = sp.history || [];
         sp.history.push({ ts: new Date().toISOString(), kind: "config", changes, who: "you" });
       }
-      Object.assign(sp, { type, name, hmiTag, unit, active, targets, ...fields });
-      if (sp.current != null && fields.min != null && sp.current < fields.min) sp.current = fields.min;
-      if (sp.current != null && fields.max != null && sp.current > fields.max) sp.current = fields.max;
+      Object.assign(sp, { type, name, hmiTag, min, max, unit, active, targets });
+      if (sp.current < min) sp.current = min;
+      if (sp.current > max) sp.current = max;
       sp.source = `Configured · ${new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"})}`;
       toast(`Updated: ${name}`, "ok");
     }
   } else {
     const id = "sp-" + Date.now().toString(36);
-    const initialCurrent = schema === "switchover" ? fields.switchoverTime
-                          : (fields.min != null && fields.max != null ? (fields.min + fields.max) / 2 : 0);
     list.push({
-      id, type, name, hmiTag, unit, active, targets, ...fields,
+      id, type, name, hmiTag, min, max, unit, active, targets,
       equipment: targets.length ? "Linked equipment" : "Unassigned",
-      current: initialCurrent,
+      current: (min + max) / 2,
       source: "Created · " + new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"}),
       history: [{ ts: new Date().toISOString(), kind: "config", changes: { created: { from: "—", to: "—" } }, who: "you", note: "Created" }],
     });
     toast(`Added: ${name}`, "ok");
   }
+
   closeSpModal();
   renderList();
 }
@@ -423,7 +322,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#spModalClose")?.addEventListener("click", closeSpModal);
   $("#spModalCancel")?.addEventListener("click", closeSpModal);
   $("#spModalSave")?.addEventListener("click", saveSpFromModal);
-  $("#mType")?.addEventListener("change", () => { renderSchemaFields(null); updateUnitLabels(); });
+  $("#mType")?.addEventListener("change", updateUnitLabels);
   $("#msTrigger")?.addEventListener("click", e => { e.stopPropagation(); toggleMsMenu(); });
   $("#msMenuSearch")?.addEventListener("input", e => { msMenuSearch = e.target.value.toLowerCase(); renderMsList(); });
   $("#msSelectAll")?.addEventListener("click", () => { EQUIPMENT_CATALOG.forEach(eq => msSelected.add(eq.id)); renderMsTrigger(); renderMsList(); });

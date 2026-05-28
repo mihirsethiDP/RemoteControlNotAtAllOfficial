@@ -604,29 +604,21 @@ function promptApplySetpoint(spId, newValue) {
   if (isNaN(newValue)) { toast("Enter a valid number", "warn"); return; }
   if (newValue < sp.min || newValue > sp.max) { toast(`Value out of allowed range (${sp.min}–${sp.max} ${sp.unit})`, "bad"); return; }
   if (!sp.active) { toast("This set point is disabled", "warn"); return; }
-  const zone = classifyZone(newValue, sp);
-  pendingSp = { spId, newValue, zone };
-
-  const card = document.querySelector("#spNotice .modal-card");
-  if (card) {
-    card.classList.remove("severity-warn");
-    if (zone === "caution") card.classList.add("severity-warn");
-  }
-
-  const banner = zone === "caution"
-    ? `<div class="zone-banner warn">⚠ This value is in the SOFT CAUTION zone (near the configured limits). PLC behaviour may be unexpected; you may override and proceed.</div>`
-    : "";
-
+  pendingSp = { spId, newValue };
   document.getElementById("spNoticeBody").innerHTML = `
-    ${banner}
     You're about to overwrite the HMI tag
     <code style="background:#fafaf6;border:1px solid var(--line);padding:1px 6px;border-radius:4px;font-size:12px;color:var(--text)">${sp.hmiTag || "—"}</code>
     from <b>${sp.current} ${sp.unit}</b> to <b>${newValue} ${sp.unit}</b>.
+    <br><br>
+    The PLC will use the new value on its next evaluation tick. Linked equipment behaviour may change.
   `;
   const impact = document.getElementById("spImpactList");
   impact.innerHTML = `<div class="sp-impact-head">LINKED EQUIPMENT</div>` + (sp.targets||[]).map(t => {
     const dev = DEVICES[t];
-    return `<div class="sp-impact-row"><span class="arrow">→</span><span class="target">${dev?dev.name:t}</span></div>`;
+    return `<div class="sp-impact-row">
+      <span class="arrow">→</span>
+      <span class="target">${dev?dev.name:t}</span>
+    </div>`;
   }).join("");
   document.getElementById("spNotice").classList.remove("hidden");
 }
@@ -638,8 +630,7 @@ function applyPendingSp() {
   sp.current = pendingSp.newValue;
   sp.source  = `Operator override · ${new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"})}`;
   sp.history = sp.history || [];
-  const note = pendingSp.zone === "caution" ? "Override — soft caution" : "";
-  sp.history.push({ ts: new Date().toISOString(), kind: "value", from, to: sp.current, who: "you", note });
+  sp.history.push({ ts: new Date().toISOString(), kind: "value", from, to: sp.current, who: "you" });
   toast(`Set point override applied · ${sp.name} = ${sp.current} ${sp.unit}`, "ok");
   document.getElementById("spNotice").classList.add("hidden");
   pendingSp = null;
@@ -764,98 +755,11 @@ function renderSpDrawer() {
   for (const sp of sps) body.appendChild(renderSpdCard(sp));
 }
 
-// Get a mocked live PLC reading near the current set point
-function liveReadingFor(sp) {
-  if (sp._live == null) {
-    sp._live = sp.current + (Math.random() - 0.5) * (sp.max - sp.min) * 0.06;
-  }
-  return Math.max(sp.min, Math.min(sp.max, sp._live));
-}
-// Drift each set point's live value with light noise on a poll tick
-function startLivePoll() {
-  if (window._spLivePoll) return;
-  window._spLivePoll = setInterval(() => {
-    for (const sp of (window.SETPOINTS||[])) {
-      const span = (sp.max - sp.min) || 1;
-      const cur = liveReadingFor(sp);
-      const drift = (sp.current - cur) * 0.20;
-      const noise = (Math.random() - 0.5) * span * 0.015;
-      sp._live = Math.max(sp.min, Math.min(sp.max, cur + drift + noise));
-      document.querySelectorAll(`.spd-card[data-sp-id="${sp.id}"] [data-live-val]`).forEach(el => {
-        el.textContent = formatVal(sp._live, sp.unit);
-      });
-      document.querySelectorAll(`.spd-card[data-sp-id="${sp.id}"] [data-live-marker]`).forEach(el => {
-        const pct = ((sp._live - sp.min) / span) * 100;
-        el.style.left = `calc(${Math.max(0,Math.min(100,pct))}% - 1px)`;
-      });
-    }
-  }, 2500);
-}
-function formatVal(v, unit) {
-  if (v == null || isNaN(v)) return "—";
-  const decimals = (unit==="pH"||unit==="bar"||unit==="ppm") ? 2 : (unit==="mV"||unit==="s"||unit==="min"||unit==="%") ? 0 : 1;
-  return Number(v).toFixed(decimals);
-}
-// Soft caution zone: 15% from each end of the configured range
-function softZones(sp) {
-  const span = sp.max - sp.min;
-  return { lowEnd: sp.min + span * 0.15, highStart: sp.max - span * 0.15 };
-}
-function classifyZone(value, sp) {
-  if (value < sp.min || value > sp.max) return "outside";
-  const { lowEnd, highStart } = softZones(sp);
-  if (value < lowEnd || value > highStart) return "caution";
-  return "safe";
-}
-
 function renderSpdCard(sp) {
   const card = document.createElement("div");
   card.className = "spd-card" + (sp.active ? "" : " disabled");
   card.dataset.spId = sp.id;
   const typeShort = sp.type.replace(/\s.+/, "").slice(0,4).toUpperCase();
-
-  // LT (Transfer Pump): four numeric inputs, no slider
-  if (sp.intakeMin != null && sp.intakeMax != null) {
-    card.innerHTML = `
-      <div class="spd-card-head">
-        <div class="spd-tile">${typeShort}</div>
-        <div class="spd-meta">
-          <div class="spd-name">${sp.name}</div>
-          <div class="spd-eq">${sp.equipment}</div>
-        </div>
-      </div>
-      <div class="spd-hmi"><span class="lbl">HMI</span><code>${sp.hmiTag||"—"}</code></div>
-      <div class="spd-lt-grid">
-        <div class="spd-lt-block"><div class="spd-lt-title">Intake</div>
-          <div class="spd-lt-row"><label>Min</label><div class="spd-num-input"><input data-lt="intakeMin" type="number" step="any" value="${sp.intakeMin}"><span class="u">${sp.unit}</span></div></div>
-          <div class="spd-lt-row"><label>Max</label><div class="spd-num-input"><input data-lt="intakeMax" type="number" step="any" value="${sp.intakeMax}"><span class="u">${sp.unit}</span></div></div>
-        </div>
-        <div class="spd-lt-block"><div class="spd-lt-title">Outlet</div>
-          <div class="spd-lt-row"><label>Min</label><div class="spd-num-input"><input data-lt="outletMin" type="number" step="any" value="${sp.outletMin}"><span class="u">${sp.unit}</span></div></div>
-          <div class="spd-lt-row"><label>Max</label><div class="spd-num-input"><input data-lt="outletMax" type="number" step="any" value="${sp.outletMax}"><span class="u">${sp.unit}</span></div></div>
-        </div>
-      </div>
-      <div class="spd-num-row"><button class="dp-btn primary sm" data-spd-save-lt>Save</button></div>
-      <div class="spd-foot"><span>${sp.source}</span></div>
-    `;
-    card.querySelector("[data-spd-save-lt]")?.addEventListener("click", () => {
-      const vals = {};
-      card.querySelectorAll("[data-lt]").forEach(i => vals[i.dataset.lt] = parseFloat(i.value));
-      promptApplyLt(sp.id, vals);
-    });
-    return card;
-  }
-
-  // Single-value slider editor
-  const live = liveReadingFor(sp);
-  const span = (sp.max - sp.min) || 1;
-  const livePct = ((live - sp.min) / span) * 100;
-  const setPct  = ((sp.current - sp.min) / span) * 100;
-  const { lowEnd, highStart } = softZones(sp);
-  const cautionLowPct  = ((lowEnd - sp.min) / span) * 100;
-  const cautionHighPct = ((highStart - sp.min) / span) * 100;
-  const stepVal = (sp.unit==="pH"||sp.unit==="bar"||sp.unit==="ppm") ? 0.1 : 1;
-
   card.innerHTML = `
     <div class="spd-card-head">
       <div class="spd-tile">${typeShort}</div>
@@ -864,91 +768,45 @@ function renderSpdCard(sp) {
         <div class="spd-eq">${sp.equipment}</div>
       </div>
     </div>
-    <div class="spd-hmi"><span class="lbl">HMI</span><code>${sp.hmiTag||"—"}</code></div>
-
-    <div class="spd-readings">
-      <div class="spd-reading">
-        <span class="lbl">LIVE</span>
-        <b class="v" data-live-val>${formatVal(live, sp.unit)}</b>
-        <span class="u">${sp.unit}</span>
-        <span class="live-dot"></span>
-      </div>
-      <div class="spd-reading">
-        <span class="lbl">SETPOINT</span>
-        <b class="v" data-set-val>${formatVal(sp.current, sp.unit)}</b>
-        <span class="u">${sp.unit}</span>
-      </div>
+    <div class="spd-hmi">
+      <span class="lbl">HMI</span>
+      <code>${sp.hmiTag||"—"}</code>
     </div>
-
-    <div class="spd-slider">
-      <div class="spd-track">
-        <div class="spd-zone caution"  style="left:0;width:${cautionLowPct}%"></div>
-        <div class="spd-zone safe"     style="left:${cautionLowPct}%;width:${cautionHighPct-cautionLowPct}%"></div>
-        <div class="spd-zone caution"  style="left:${cautionHighPct}%;width:${100-cautionHighPct}%"></div>
-        <div class="spd-live-marker"   style="left:calc(${livePct}% - 1px)" data-live-marker title="Live PLC value"></div>
-        <div class="spd-set-marker"    style="left:calc(${setPct}% - 6px)" data-set-marker></div>
+    <div class="spd-value" data-mode="view">
+      <div>
+        <span class="v-num">${sp.current}</span>
+        <span class="v-unit">${sp.unit}</span>
       </div>
-      <input type="range" data-slider
-        min="${sp.min}" max="${sp.max}" step="${stepVal}"
-        value="${sp.current}" ${sp.active ? "" : "disabled"}/>
-      <div class="spd-ticks">
-        <span>${sp.min} ${sp.unit}</span>
-        <span>${sp.max} ${sp.unit}</span>
-      </div>
+      <button class="v-edit" data-spd-edit>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+        Edit
+      </button>
     </div>
-
-    <div class="spd-num-row">
-      <div class="spd-num-input">
-        <input type="number" data-num step="${stepVal}" min="${sp.min}" max="${sp.max}"
-          value="${sp.current}" ${sp.active ? "" : "disabled"}/>
-        <span class="u">${sp.unit}</span>
-      </div>
-      <button class="dp-btn primary sm" data-spd-save ${sp.active?"":"disabled"}>Save</button>
-    </div>
-
     <div class="spd-foot">
-      <span>Safe: <b>${formatVal(lowEnd, sp.unit)} – ${formatVal(highStart, sp.unit)} ${sp.unit}</b></span>
+      <span>Range: <b>${sp.min} – ${sp.max} ${sp.unit}</b></span>
       <span>${sp.source}</span>
     </div>
   `;
-
-  // Sync slider <-> numeric, update set marker live
-  const slider  = card.querySelector("[data-slider]");
-  const numEl   = card.querySelector("[data-num]");
-  const setMark = card.querySelector("[data-set-marker]");
-  const setVal  = card.querySelector("[data-set-val]");
-  const onMove = (val) => {
-    setVal.textContent = formatVal(val, sp.unit);
-    const z = classifyZone(val, sp);
-    setVal.className = "v zone-" + z;
-    const pct = ((val - sp.min) / span) * 100;
-    setMark.style.left = `calc(${Math.max(0,Math.min(100,pct))}% - 6px)`;
-    setMark.dataset.zone = z;
-  };
-  slider?.addEventListener("input", e => { const v = parseFloat(e.target.value); numEl.value = v; onMove(v); });
-  numEl?.addEventListener("input",  e => { const v = parseFloat(e.target.value); if (!isNaN(v)) { slider.value = v; onMove(v); } });
-  card.querySelector("[data-spd-save]")?.addEventListener("click", () => {
-    promptApplySetpoint(sp.id, parseFloat(numEl.value));
-  });
-  // Initial paint of set marker zone
-  setMark.dataset.zone = classifyZone(sp.current, sp);
+  card.querySelector("[data-spd-edit]")?.addEventListener("click", () => enterSpdEdit(card, sp));
   return card;
 }
 
-function promptApplyLt(spId, vals) {
-  const sp = (window.SETPOINTS||[]).find(x => x.id === spId);
-  if (!sp) return;
-  if (Object.values(vals).some(isNaN)) return toast("All four levels must be numbers", "bad");
-  if (vals.intakeMax <= vals.intakeMin) return toast("Intake Max must be greater than Intake Min", "bad");
-  if (vals.outletMax <= vals.outletMin) return toast("Outlet Max must be greater than Outlet Min", "bad");
-  // Apply directly (no soft warning for LT bounds — they are config values)
-  const from = { intakeMin: sp.intakeMin, intakeMax: sp.intakeMax, outletMin: sp.outletMin, outletMax: sp.outletMax };
-  Object.assign(sp, vals);
-  sp.source = `Operator override · ${new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"})}`;
-  sp.history = sp.history || [];
-  sp.history.push({ ts: new Date().toISOString(), kind: "value", from: JSON.stringify(from), to: JSON.stringify(vals), who: "you" });
-  toast(`${sp.name} updated`, "ok");
-  refreshSetpointAllViews(sp.id);
+function enterSpdEdit(card, sp) {
+  const v = card.querySelector(".spd-value");
+  v.dataset.mode = "edit"; v.classList.add("editing");
+  v.innerHTML = `
+    <div class="v-input-wrap">
+      <input type="number" step="${sp.unit==='pH'?'0.1':sp.unit==='bar'?'0.1':sp.unit==='ppm'?'0.1':'1'}" value="${sp.current}" />
+      <span class="v-unit-inline">${sp.unit}</span>
+    </div>
+    <div class="v-actions">
+      <button class="btn-mini cancel">Cancel</button>
+      <button class="btn-mini save">Save</button>
+    </div>
+  `;
+  const inp = v.querySelector("input"); inp.focus(); inp.select();
+  v.querySelector(".cancel").addEventListener("click", () => card.replaceWith(renderSpdCard(sp)));
+  v.querySelector(".save").addEventListener("click", () => promptApplySetpoint(sp.id, parseFloat(inp.value)));
 }
 
 // =====================================================================
@@ -1144,7 +1002,6 @@ function tickClock(){
 
 document.addEventListener("DOMContentLoaded", () => {
   tickClock(); setInterval(tickClock, 30000);
-  startLivePoll();
 
   // Page selector
   $("#pageSelect")?.addEventListener("change", e => switchPage(e.target.value));
