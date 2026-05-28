@@ -218,6 +218,47 @@
   </div>
 </div>
 
+<!-- SETPOINT CONTROL POPUP -->
+<div id="setpointControlPopup" class="modal hidden">
+  <div class="modal-card sc-modal">
+    <div class="sc-head">
+      <div>
+        <div class="sc-title" id="scTitle">Setpoint Control</div>
+        <div class="sc-sub" id="scSub">—</div>
+      </div>
+      <button class="sp-modal-x" id="scClose" aria-label="Close">✕</button>
+    </div>
+    <div class="sc-meta">
+      <div class="sc-meta-cell"><span class="lbl">HMI TAG</span><code id="scHmi">—</code></div>
+      <div class="sc-meta-cell"><span class="lbl">CURRENTLY SET (LIVE)</span><span class="v" id="scLive">—</span></div>
+      <div class="sc-meta-cell"><span class="lbl">ALLOWED SAFE RANGE</span><span class="v" id="scRange">—</span></div>
+    </div>
+    <div id="scBody" class="sc-body"></div>
+    <div class="sc-foot">
+      <button class="dp-btn ghost" id="scCancel">Cancel</button>
+      <button class="dp-btn primary" id="scApply">Apply setpoint</button>
+    </div>
+  </div>
+</div>
+
+<!-- WARNING POPUP -->
+<div id="scWarn" class="modal hidden">
+  <div class="modal-card sc-warn">
+    <div class="sc-warn-head">
+      <div class="sc-warn-icon">⚠</div>
+      <div>
+        <h2>Value outside safe range</h2>
+        <p class="muted">The system warns — it does not block setpoint changes.</p>
+      </div>
+    </div>
+    <div class="sc-warn-body" id="scWarnBody">—</div>
+    <div class="sc-foot">
+      <button class="dp-btn ghost" id="scWarnCancel">Cancel</button>
+      <button class="dp-btn danger" id="scWarnOverride">Override &amp; apply</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast hidden"></div>
 
 <script src="assets/sbr-section.js"></script>

@@ -80,9 +80,7 @@ function renderList() {
         <div class="c-name-main">${sp.name}</div>
         <div class="c-name-sub">${sp.equipment}</div>
       </div>
-      <div class="c-range">
-        <div class="range-line">Allowed: <b>${sp.min} – ${sp.max} ${sp.unit}</b></div>
-      </div>
+      <div class="c-range">${rangeCell(sp)}</div>
       <div class="c-hmi"><code>${sp.hmiTag||"—"}</code></div>
       <div class="c-eq">
         ${eqNames.length ? `<span class="c-eq-main">${eqNames[0]}</span>` + (eqNames.length>1?`<span class="c-eq-rest">+${eqNames.length-1} more</span>`:"") : '<span class="muted">None linked</span>'}
@@ -99,21 +97,103 @@ function renderList() {
   }
 }
 
+function rangeCell(sp) {
+  if (sp.type === "LT") {
+    return `<div class="range-line">Intake: <b>${sp.intakeMin} – ${sp.intakeMax} ${sp.unit}</b></div>
+            <div class="range-line">Outlet: <b>${sp.outletMin} – ${sp.outletMax} ${sp.unit}</b></div>`;
+  }
+  if (sp.type === "PT") {
+    const lo = sp.min == null ? "—" : sp.min;
+    return `<div class="range-line">Allowed: <b>${lo} – ${sp.max} ${sp.unit}</b></div>`;
+  }
+  if (sp.type === "Switchover Time") {
+    return `<div class="range-line">Current: <b>${sp.current} ${sp.unit}</b></div>
+            <div class="range-line muted">Max: ${sp.max} ${sp.unit}</div>`;
+  }
+  return `<div class="range-line">Allowed: <b>${sp.min} – ${sp.max} ${sp.unit}</b></div>`;
+}
+
 // ----------- Modal -----------
 function openSpModal(spId) {
   editingSpId = spId;
   const sp = spId ? (window.SETPOINTS||[]).find(x => x.id === spId) : null;
   $("#spModalTitle").textContent = sp ? "Edit set point" : "Add set point";
-  $("#mType").value = sp?.type || "Level";
+  $("#mType").value = sp?.type || "DO";
   $("#mName").value = sp?.name || "";
   $("#mHmiTag").value = sp?.hmiTag || "";
-  $("#mMin").value = sp?.min ?? "";
-  $("#mMax").value = sp?.max ?? "";
   $("#mActive").checked = sp ? !!sp.active : true;
+  renderSchemaFields(sp);
   updateUnitLabels();
   renderEquipmentChips(sp?.targets || []);
   renderHistorySection(sp);
   $("#spModal").classList.remove("hidden");
+}
+
+function renderSchemaFields(sp) {
+  const host = $("#mSchemaFields"); if (!host) return;
+  const type = $("#mType").value;
+  if (type === "LT") {
+    host.innerHTML = `
+      <div class="cfg-section-label"><span>Transfer pump tank levels</span><span class="cfg-help">Both intake and outlet ranges required.</span></div>
+      <div class="cfg-lt-block">
+        <div class="cfg-lt-title">Intake Tank</div>
+        <div class="cfg-grid-2">
+          <div class="cfg-field"><label>Min Intake Level</label>
+            <div class="cfg-input"><input type="number" step="any" id="fldIntakeMin" value="${sp?.intakeMin ?? ""}"><span class="unit m-unit-suffix">—</span></div></div>
+          <div class="cfg-field"><label>Max Intake Level</label>
+            <div class="cfg-input"><input type="number" step="any" id="fldIntakeMax" value="${sp?.intakeMax ?? ""}"><span class="unit m-unit-suffix">—</span></div></div>
+        </div>
+      </div>
+      <div class="cfg-lt-block">
+        <div class="cfg-lt-title">Outlet Tank</div>
+        <div class="cfg-grid-2">
+          <div class="cfg-field"><label>Min Outlet Level</label>
+            <div class="cfg-input"><input type="number" step="any" id="fldOutletMin" value="${sp?.outletMin ?? ""}"><span class="unit m-unit-suffix">—</span></div></div>
+          <div class="cfg-field"><label>Max Outlet Level</label>
+            <div class="cfg-input"><input type="number" step="any" id="fldOutletMax" value="${sp?.outletMax ?? ""}"><span class="unit m-unit-suffix">—</span></div></div>
+        </div>
+      </div>
+    `;
+  } else if (type === "PT") {
+    host.innerHTML = `
+      <div class="cfg-section-label"><span>Pressure thresholds</span><span class="cfg-help">Maximum is required; minimum is optional per plant.</span></div>
+      <div class="cfg-grid-2">
+        <div class="cfg-field">
+          <label>Max Pressure <span class="req">required</span></label>
+          <div class="cfg-input"><input type="number" step="any" id="mMax" value="${sp?.max ?? ""}"><span class="unit m-unit-suffix">—</span></div>
+        </div>
+        <div class="cfg-field">
+          <label>Min Pressure (optional)</label>
+          <div class="cfg-input"><input type="number" step="any" id="mMin" value="${sp?.min ?? ""}"><span class="unit m-unit-suffix">—</span></div>
+        </div>
+      </div>
+    `;
+  } else if (type === "Switchover Time") {
+    host.innerHTML = `
+      <div class="cfg-section-label"><span>Switchover Time</span><span class="cfg-help">Applies to the entire duty/standby group, not individual units.</span></div>
+      <div class="cfg-grid-2">
+        <div class="cfg-field">
+          <label>Switchover duration</label>
+          <div class="cfg-input"><input type="number" step="1" id="mCurrent" value="${sp?.current ?? ""}"><span class="unit m-unit-suffix">min</span></div>
+        </div>
+        <div class="cfg-field">
+          <label>Allowed range max</label>
+          <div class="cfg-input"><input type="number" step="1" id="mMax" value="${sp?.max ?? 1440}"><span class="unit m-unit-suffix">min</span></div>
+        </div>
+      </div>
+    `;
+  } else {
+    // DO / Flow — Min/Max
+    host.innerHTML = `
+      <div class="cfg-section-label"><span>Allowed range</span><span class="cfg-help">Operators may only adjust within this band; values outside trigger a warning.</span></div>
+      <div class="cfg-grid-2">
+        <div class="cfg-field"><label>Minimum</label>
+          <div class="cfg-input"><input type="number" step="any" id="mMin" value="${sp?.min ?? ""}"><span class="unit m-unit-suffix">—</span></div></div>
+        <div class="cfg-field"><label>Maximum</label>
+          <div class="cfg-input"><input type="number" step="any" id="mMax" value="${sp?.max ?? ""}"><span class="unit m-unit-suffix">—</span></div></div>
+      </div>
+    `;
+  }
 }
 
 function renderHistorySection(sp) {
@@ -161,24 +241,19 @@ function closeSpModal() {
 
 function updateUnitLabels() {
   const t = $("#mType").value;
-  const u = (window.SP_TYPE_DEFAULTS||{})[t]?.unit || "";
-  $("#mUnitMin").textContent = u || "—";
-  $("#mUnitMax").textContent = u || "—";
+  const u = (window.SP_TYPE_UNIT||{})[t] || "";
+  document.querySelectorAll(".m-unit-suffix").forEach(el => el.textContent = u || "—");
   const disp = $("#mUnitDisplay");
   if (disp) disp.innerHTML = u ? `<b>${u}</b><span class="ud-sub">${typeBlurb(t)}</span>` : "—";
 }
 
 function typeBlurb(t) {
   switch (t) {
-    case "DO":   return "dissolved oxygen";
-    case "pH":   return "pH units";
-    case "Level": return "tank level %";
-    case "Differential Pressure":
-    case "Differential Pressure (calculated)": return "pressure";
-    case "FRC":  return "free residual chlorine";
-    case "ORP":  return "redox potential";
+    case "DO": return "dissolved oxygen";
+    case "PT": return "pressure";
+    case "LT": return "tank level (transfer pumps)";
     case "Flow": return "flow rate";
-    case "Time": return "duration in seconds";
+    case "Switchover Time": return "duty/standby alternation";
     default: return "";
   }
 }
@@ -266,50 +341,80 @@ function saveSpFromModal() {
   const type = $("#mType").value;
   const name = $("#mName").value.trim();
   const hmiTag = $("#mHmiTag").value.trim();
-  const min = parseFloat($("#mMin").value);
-  const max = parseFloat($("#mMax").value);
   const active = $("#mActive").checked;
   const targets = Array.from(msSelected);
+  const unit = (window.SP_TYPE_UNIT||{})[type] || "";
 
   if (!name) return toast("Name is required", "bad");
   if (!hmiTag) return toast("HMI Set Point Tag is required", "bad");
-  if (isNaN(min) || isNaN(max)) return toast("Min and Max must be numbers", "bad");
-  if (max <= min) return toast("Max must be greater than Min", "bad");
   if (!targets.length) return toast("Link at least one equipment", "bad");
 
-  const unit = (window.SP_TYPE_DEFAULTS||{})[type]?.unit || "";
+  // Schema-specific fields
+  const fields = {};
+  if (type === "LT") {
+    const a = parseFloat($("#fldIntakeMin").value);
+    const b = parseFloat($("#fldIntakeMax").value);
+    const c = parseFloat($("#fldOutletMin").value);
+    const d = parseFloat($("#fldOutletMax").value);
+    if ([a,b,c,d].some(isNaN)) return toast("All four levels must be numbers", "bad");
+    if (b <= a) return toast("Intake Max must be greater than Intake Min", "bad");
+    if (d <= c) return toast("Outlet Max must be greater than Outlet Min", "bad");
+    Object.assign(fields, { intakeMin:a, intakeMax:b, outletMin:c, outletMax:d, min:a, max:b });
+  } else if (type === "PT") {
+    const max = parseFloat($("#mMax").value);
+    const minRaw = $("#mMin").value;
+    const min = minRaw === "" ? null : parseFloat(minRaw);
+    if (isNaN(max)) return toast("Max pressure is required", "bad");
+    if (min !== null && !isNaN(min) && max <= min) return toast("Max must be greater than Min", "bad");
+    fields.max = max; fields.min = (min ?? null);
+  } else if (type === "Switchover Time") {
+    const current = parseFloat($("#mCurrent").value);
+    const max = parseFloat($("#mMax").value);
+    if (isNaN(current) || current <= 0) return toast("Switchover duration must be a positive number", "bad");
+    if (isNaN(max) || max <= current) return toast("Allowed range max must be greater than the current value", "bad");
+    fields.current = current; fields.min = 1; fields.max = max;
+  } else {
+    // DO / Flow
+    const min = parseFloat($("#mMin").value);
+    const max = parseFloat($("#mMax").value);
+    if (isNaN(min) || isNaN(max)) return toast("Min and Max must be numbers", "bad");
+    if (max <= min) return toast("Max must be greater than Min", "bad");
+    fields.min = min; fields.max = max;
+  }
+
   const list = window.SETPOINTS || (window.SETPOINTS = []);
 
   if (editingSpId) {
     const sp = list.find(x => x.id === editingSpId);
     if (sp) {
-      // Record config history if min/max/active actually changed
       const changes = {};
-      if (sp.min !== min) changes.min = { from: sp.min, to: min };
-      if (sp.max !== max) changes.max = { from: sp.max, to: max };
+      for (const k of Object.keys(fields)) {
+        if (sp[k] !== fields[k]) changes[k] = { from: sp[k], to: fields[k] };
+      }
       if (sp.active !== active) changes.active = { from: sp.active, to: active };
       if (Object.keys(changes).length) {
         sp.history = sp.history || [];
         sp.history.push({ ts: new Date().toISOString(), kind: "config", changes, who: "you" });
       }
-      Object.assign(sp, { type, name, hmiTag, min, max, unit, active, targets });
-      if (sp.current < min) sp.current = min;
-      if (sp.current > max) sp.current = max;
+      Object.assign(sp, { type, name, hmiTag, unit, active, targets, ...fields });
+      if (sp.current != null && fields.min != null && sp.current < fields.min) sp.current = fields.min;
+      if (sp.current != null && fields.max != null && sp.current > fields.max) sp.current = fields.max;
       sp.source = `Configured · ${new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"})}`;
       toast(`Updated: ${name}`, "ok");
     }
   } else {
     const id = "sp-" + Date.now().toString(36);
+    const initialCurrent = type === "Switchover Time" ? fields.current
+                          : (fields.min != null && fields.max != null ? (fields.min + fields.max) / 2 : 0);
     list.push({
-      id, type, name, hmiTag, min, max, unit, active, targets,
+      id, type, name, hmiTag, unit, active, targets, ...fields,
       equipment: targets.length ? "Linked equipment" : "Unassigned",
-      current: (min + max) / 2,
+      current: fields.current ?? initialCurrent,
       source: "Created · " + new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"}),
-      history: [{ ts: new Date().toISOString(), kind: "config", changes: { created: { from: "—", to: "—" } }, who: "you", note: "Created" }],
+      history: [{ ts: new Date().toISOString(), kind: "config", changes: { created: { from:"—", to:"—" } }, who: "you", note: "Created" }],
     });
     toast(`Added: ${name}`, "ok");
   }
-
   closeSpModal();
   renderList();
 }
@@ -322,7 +427,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#spModalClose")?.addEventListener("click", closeSpModal);
   $("#spModalCancel")?.addEventListener("click", closeSpModal);
   $("#spModalSave")?.addEventListener("click", saveSpFromModal);
-  $("#mType")?.addEventListener("change", updateUnitLabels);
+  $("#mType")?.addEventListener("change", () => { renderSchemaFields(null); updateUnitLabels(); });
   $("#msTrigger")?.addEventListener("click", e => { e.stopPropagation(); toggleMsMenu(); });
   $("#msMenuSearch")?.addEventListener("input", e => { msMenuSearch = e.target.value.toLowerCase(); renderMsList(); });
   $("#msSelectAll")?.addEventListener("click", () => { EQUIPMENT_CATALOG.forEach(eq => msSelected.add(eq.id)); renderMsTrigger(); renderMsList(); });

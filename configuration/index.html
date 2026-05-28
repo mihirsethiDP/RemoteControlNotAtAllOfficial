@@ -61,8 +61,8 @@
     <input type="search" id="cfgSearch" placeholder="Search by name, equipment, HMI tag…" />
     <select id="cfgFilter">
       <option value="">All types</option>
-      <option>Level</option><option>DO</option><option>Differential Pressure</option><option>Differential Pressure (calculated)</option>
-      <option>pH</option><option>FRC</option><option>ORP</option><option>Flow</option><option>Time</option>
+      <option>DO</option><option>PT</option><option>LT</option>
+      <option>Flow</option><option>Switchover Time</option>
     </select>
     <span class="cfg-count" id="cfgCount">0 configured</span>
   </div>
@@ -82,10 +82,11 @@
         <div class="cfg-field">
           <label>Type</label>
           <select id="mType">
-            <option>Level</option><option>DO</option>
-            <option>Differential Pressure</option><option>Differential Pressure (calculated)</option>
-            <option>pH</option><option>FRC</option><option>ORP</option>
-            <option>Flow</option><option>Time</option>
+            <option>DO</option>
+            <option>PT</option>
+            <option>LT</option>
+            <option>Flow</option>
+            <option>Switchover Time</option>
           </select>
         </div>
         <div class="cfg-field">
@@ -104,16 +105,7 @@
         <input type="text" id="mHmiTag" placeholder="e.g. LIT_201.LEVEL_HIGH_SP" />
       </div>
 
-      <div class="cfg-grid-2">
-        <div class="cfg-field">
-          <label>Min threshold</label>
-          <div class="cfg-input"><input type="number" step="any" id="mMin"><span class="unit" id="mUnitMin">—</span></div>
-        </div>
-        <div class="cfg-field">
-          <label>Max threshold</label>
-          <div class="cfg-input"><input type="number" step="any" id="mMax"><span class="unit" id="mUnitMax">—</span></div>
-        </div>
-      </div>
+      <div id="mSchemaFields"></div>
 
       <div class="cfg-field">
         <label>Linked equipment <span class="cfg-help" id="mEqCount">0 selected</span></label>

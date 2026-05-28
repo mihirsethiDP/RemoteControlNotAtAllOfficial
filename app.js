@@ -755,11 +755,31 @@ function renderSpDrawer() {
   for (const sp of sps) body.appendChild(renderSpdCard(sp));
 }
 
+function stepFor(unit) {
+  if (unit === "mg/L" || unit === "bar" || unit === "ppm") return 0.1;
+  if (unit === "m") return 0.1;
+  return 1;
+}
+
+function spLiveText(sp) {
+  if (sp.type === "LT") {
+    return `Intake ${sp.intakeMin}–${sp.intakeMax} · Outlet ${sp.outletMin}–${sp.outletMax} ${sp.unit}`;
+  }
+  return `${sp.current} ${sp.unit}`;
+}
+
+function spRangeText(sp) {
+  if (sp.type === "LT") return `4 setpoints (${sp.unit})`;
+  if (sp.type === "PT") return `${sp.min==null?"—":sp.min} – ${sp.max} ${sp.unit}`;
+  if (sp.type === "Switchover Time") return `up to ${sp.max} ${sp.unit}`;
+  return `${sp.min} – ${sp.max} ${sp.unit}`;
+}
+
 function renderSpdCard(sp) {
   const card = document.createElement("div");
   card.className = "spd-card" + (sp.active ? "" : " disabled");
   card.dataset.spId = sp.id;
-  const typeShort = sp.type.replace(/\s.+/, "").slice(0,4).toUpperCase();
+  const typeShort = sp.type.split(" ")[0].slice(0,3).toUpperCase();
   card.innerHTML = `
     <div class="spd-card-head">
       <div class="spd-tile">${typeShort}</div>
@@ -768,45 +788,193 @@ function renderSpdCard(sp) {
         <div class="spd-eq">${sp.equipment}</div>
       </div>
     </div>
-    <div class="spd-hmi">
-      <span class="lbl">HMI</span>
-      <code>${sp.hmiTag||"—"}</code>
-    </div>
-    <div class="spd-value" data-mode="view">
-      <div>
-        <span class="v-num">${sp.current}</span>
-        <span class="v-unit">${sp.unit}</span>
+    <div class="spd-hmi"><span class="lbl">HMI</span><code>${sp.hmiTag||"—"}</code></div>
+    <div class="spd-readout">
+      <div class="spd-readout-cell">
+        <span class="lbl">CURRENT</span>
+        <span class="v">${spLiveText(sp)}</span>
       </div>
-      <button class="v-edit" data-spd-edit>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
-        Edit
-      </button>
+      <div class="spd-readout-cell">
+        <span class="lbl">SAFE RANGE</span>
+        <span class="v muted">${spRangeText(sp)}</span>
+      </div>
     </div>
-    <div class="spd-foot">
-      <span>Range: <b>${sp.min} – ${sp.max} ${sp.unit}</b></span>
-      <span>${sp.source}</span>
+    <div class="spd-card-actions">
+      <button class="dp-btn primary sm" data-spd-control ${sp.active?"":"disabled"}>Open control</button>
     </div>
   `;
-  card.querySelector("[data-spd-edit]")?.addEventListener("click", () => enterSpdEdit(card, sp));
+  card.querySelector("[data-spd-control]")?.addEventListener("click", e => { e.stopPropagation(); openSetpointControlPopup(sp.id); });
   return card;
 }
 
-function enterSpdEdit(card, sp) {
-  const v = card.querySelector(".spd-value");
-  v.dataset.mode = "edit"; v.classList.add("editing");
-  v.innerHTML = `
-    <div class="v-input-wrap">
-      <input type="number" step="${sp.unit==='pH'?'0.1':sp.unit==='bar'?'0.1':sp.unit==='ppm'?'0.1':'1'}" value="${sp.current}" />
-      <span class="v-unit-inline">${sp.unit}</span>
+// =====================================================================
+// SETPOINT CONTROL POPUP — slider + numeric + live + safe range
+// =====================================================================
+function openSetpointControlPopup(spId) {
+  const sp = (window.SETPOINTS||[]).find(x => x.id === spId);
+  if (!sp) return;
+  const popup = document.getElementById("setpointControlPopup");
+  if (!popup) return;
+  popup.dataset.spId = sp.id;
+  document.getElementById("scTitle").textContent = sp.name;
+  document.getElementById("scSub").textContent  = `${sp.type} · ${sp.equipment}`;
+  document.getElementById("scHmi").textContent  = sp.hmiTag || "—";
+  document.getElementById("scLive").innerHTML   = `${spLiveText(sp)}`;
+  document.getElementById("scRange").innerHTML  = `${spRangeText(sp)}`;
+
+  const body = document.getElementById("scBody");
+  body.innerHTML = "";
+
+  if (sp.type === "LT") {
+    body.appendChild(buildLtEditor(sp));
+  } else {
+    body.appendChild(buildSliderEditor(sp));
+  }
+  popup.classList.remove("hidden");
+}
+function closeSetpointControlPopup() {
+  document.getElementById("setpointControlPopup")?.classList.add("hidden");
+}
+
+function buildSliderEditor(sp) {
+  const wrap = document.createElement("div");
+  const step = stepFor(sp.unit);
+  const sliderMin = sp.min == null ? 0 : sp.min;
+  const sliderMax = sp.max;
+  wrap.innerHTML = `
+    <div class="sc-slider-row">
+      <span class="sc-tick">${sliderMin} ${sp.unit}</span>
+      <input type="range" class="sc-slider" min="${sliderMin}" max="${sliderMax}" step="${step}" value="${sp.current}" />
+      <span class="sc-tick">${sliderMax} ${sp.unit}</span>
     </div>
-    <div class="v-actions">
-      <button class="btn-mini cancel">Cancel</button>
-      <button class="btn-mini save">Save</button>
+    <div class="sc-num-row">
+      <label>New setpoint</label>
+      <div class="sc-num">
+        <input type="number" step="${step}" value="${sp.current}" data-sc-num>
+        <span class="unit">${sp.unit}</span>
+      </div>
+    </div>
+    <div class="sc-marker-row">
+      <span>Currently set on PLC: <b>${sp.current} ${sp.unit}</b></span>
     </div>
   `;
-  const inp = v.querySelector("input"); inp.focus(); inp.select();
-  v.querySelector(".cancel").addEventListener("click", () => card.replaceWith(renderSpdCard(sp)));
-  v.querySelector(".save").addEventListener("click", () => promptApplySetpoint(sp.id, parseFloat(inp.value)));
+  const slider = wrap.querySelector(".sc-slider");
+  const num    = wrap.querySelector("[data-sc-num]");
+  slider.addEventListener("input", () => { num.value = slider.value; });
+  num.addEventListener("input", () => {
+    const v = parseFloat(num.value);
+    if (!isNaN(v) && v >= sliderMin && v <= sliderMax) slider.value = v;
+  });
+  return wrap;
+}
+
+function buildLtEditor(sp) {
+  const wrap = document.createElement("div");
+  wrap.className = "sc-lt-grid";
+  wrap.innerHTML = `
+    <div class="sc-lt-block">
+      <div class="sc-lt-title">Intake Tank</div>
+      <div class="sc-lt-row"><label>Min</label><div class="sc-num"><input type="number" step="0.1" data-lt="intakeMin" value="${sp.intakeMin}"><span class="unit">${sp.unit}</span></div></div>
+      <div class="sc-lt-row"><label>Max</label><div class="sc-num"><input type="number" step="0.1" data-lt="intakeMax" value="${sp.intakeMax}"><span class="unit">${sp.unit}</span></div></div>
+    </div>
+    <div class="sc-lt-block">
+      <div class="sc-lt-title">Outlet Tank</div>
+      <div class="sc-lt-row"><label>Min</label><div class="sc-num"><input type="number" step="0.1" data-lt="outletMin" value="${sp.outletMin}"><span class="unit">${sp.unit}</span></div></div>
+      <div class="sc-lt-row"><label>Max</label><div class="sc-num"><input type="number" step="0.1" data-lt="outletMax" value="${sp.outletMax}"><span class="unit">${sp.unit}</span></div></div>
+    </div>
+  `;
+  return wrap;
+}
+
+// Apply from popup
+function applyFromControlPopup() {
+  const popup = document.getElementById("setpointControlPopup");
+  const spId = popup?.dataset.spId;
+  const sp = (window.SETPOINTS||[]).find(x => x.id === spId);
+  if (!sp) return;
+
+  if (sp.type === "LT") {
+    const vals = {};
+    popup.querySelectorAll("[data-lt]").forEach(i => vals[i.dataset.lt] = parseFloat(i.value));
+    if (Object.values(vals).some(isNaN)) return toast("All four levels must be numbers", "bad");
+    if (vals.intakeMax <= vals.intakeMin) return toast("Intake Max must be greater than Intake Min", "bad");
+    if (vals.outletMax <= vals.outletMin) return toast("Outlet Max must be greater than Outlet Min", "bad");
+    // LT bounds: each value must be within 0..reasonable (use configured min/max as soft bounds: intakeMin from cfg)
+    const outOfRange =
+      (vals.intakeMin < (sp.intakeMin*0.5) || vals.intakeMax > (sp.intakeMax*1.5) ||
+       vals.outletMin < (sp.outletMin*0.5) || vals.outletMax > (sp.outletMax*1.5));
+    if (outOfRange) {
+      // warn
+      showWarningPopup(sp, vals, /*ltMode*/ true);
+      return;
+    }
+    commitLtChange(sp, vals);
+    return;
+  }
+
+  const num = popup.querySelector("[data-sc-num]");
+  const v = parseFloat(num.value);
+  if (isNaN(v)) return toast("Enter a valid number", "bad");
+
+  const sliderMin = sp.min == null ? -Infinity : sp.min;
+  const sliderMax = sp.max;
+  const outside = v < sliderMin || v > sliderMax;
+  if (outside) {
+    showWarningPopup(sp, v, /*ltMode*/ false);
+    return;
+  }
+  commitSinglePointChange(sp, v);
+}
+
+function commitSinglePointChange(sp, v) {
+  const from = sp.current;
+  sp.current = v;
+  sp.source = `Operator override · ${new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"})}`;
+  sp.history = sp.history || [];
+  sp.history.push({ ts: new Date().toISOString(), kind:"value", from, to:v, who:"op-mihir" });
+  toast(`Saved: ${sp.name} → ${v} ${sp.unit}`, "ok");
+  closeSetpointControlPopup();
+  refreshSetpointAllViews(sp.id);
+}
+function commitLtChange(sp, vals) {
+  const from = { intakeMin: sp.intakeMin, intakeMax: sp.intakeMax, outletMin: sp.outletMin, outletMax: sp.outletMax };
+  Object.assign(sp, vals);
+  sp.source = `Operator override · ${new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"})}`;
+  sp.history = sp.history || [];
+  sp.history.push({ ts: new Date().toISOString(), kind:"value",
+    from: `intake ${from.intakeMin}–${from.intakeMax}, outlet ${from.outletMin}–${from.outletMax}`,
+    to:   `intake ${vals.intakeMin}–${vals.intakeMax}, outlet ${vals.outletMin}–${vals.outletMax}`,
+    who: "op-mihir" });
+  toast(`Saved: ${sp.name}`, "ok");
+  closeSetpointControlPopup();
+  refreshSetpointAllViews(sp.id);
+}
+
+// Warning popup — value outside safe range
+let pendingWarn = null;
+function showWarningPopup(sp, payload, ltMode) {
+  pendingWarn = { sp, payload, ltMode };
+  const modal = document.getElementById("scWarn");
+  const body  = document.getElementById("scWarnBody");
+  if (ltMode) {
+    body.innerHTML = `One or more values are <b>outside the configured safe range</b> for this transfer pump.<br><br>Override only if you understand the operational consequence.`;
+  } else {
+    const lo = sp.min == null ? "—" : sp.min;
+    body.innerHTML = `Your value <b>${payload} ${sp.unit}</b> is <b>outside the configured safe range</b> (${lo} – ${sp.max} ${sp.unit}) for <b>${sp.name}</b>.<br><br>The system only warns — you may override and proceed.`;
+  }
+  modal.classList.remove("hidden");
+}
+function cancelWarn() {
+  document.getElementById("scWarn")?.classList.add("hidden");
+  pendingWarn = null;
+}
+function overrideWarn() {
+  if (!pendingWarn) return;
+  const { sp, payload, ltMode } = pendingWarn;
+  document.getElementById("scWarn")?.classList.add("hidden");
+  pendingWarn = null;
+  if (ltMode) commitLtChange(sp, payload);
+  else commitSinglePointChange(sp, payload);
 }
 
 // =====================================================================
@@ -1015,9 +1183,16 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#spDrawerSearch")?.addEventListener("input", e => { spDrawerFilters.search = e.target.value.toLowerCase(); renderSpDrawer(); });
   $("#spDrawerTypeFilter")?.addEventListener("change", e => { spDrawerFilters.type = e.target.value; renderSpDrawer(); });
 
-  // Set point notice modal
+  // Set point notice modal (legacy)
   $("#spNoticeCancel")?.addEventListener("click", () => { document.getElementById("spNotice").classList.add("hidden"); pendingSp = null; });
   $("#spNoticeConfirm")?.addEventListener("click", applyPendingSp);
+
+  // Setpoint Control popup
+  $("#scClose")?.addEventListener("click", closeSetpointControlPopup);
+  $("#scCancel")?.addEventListener("click", closeSetpointControlPopup);
+  $("#scApply")?.addEventListener("click", applyFromControlPopup);
+  $("#scWarnCancel")?.addEventListener("click", cancelWarn);
+  $("#scWarnOverride")?.addEventListener("click", overrideWarn);
 
   // Set Points filters
   $("#spSearch")?.addEventListener("input", renderSetpointsPage);
