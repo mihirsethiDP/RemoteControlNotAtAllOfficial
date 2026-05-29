@@ -4,6 +4,57 @@
 // =====================================================================
 
 window.SP_TYPES = ["DO", "PT", "LT", "Flow", "Switchover Time"];
+
+// Auto-generate an HMI tag from a unit process + type + index.
+// The PLC team maps this synthetic tag to the real PLC tag in their layer.
+window.generateHmiTag = function(upName, type, index) {
+  const upSlug = (upName || "UP").toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "");
+  const tSlug  = String(type || "SP").toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "");
+  return `${upSlug}.${tSlug}_${String(index||1).padStart(2,"0")}_SP`;
+};
+
+// Mock notification recipients
+window.NOTIFY_USERS = [
+  { id:"op-mihir",   name:"Mihir (Operator)",  role:"section_supervisor" },
+  { id:"op-anita",   name:"Anita (Operator)",  role:"section_supervisor" },
+  { id:"admin-rahul",name:"Rahul (Admin)",     role:"plant_admin" },
+  { id:"svc-team",   name:"Service Team",      role:"team" },
+];
+window.NOTIFY_CHANNELS = ["Email", "SMS", "In-app"];
+
+// Unit processes — algo-fetched groups of equipment that perform one process.
+// In real life this comes from a topology algorithm; here we seed manually.
+window.UNIT_PROCESSES = [
+  {
+    id: "up-aeration",
+    name: "Aeration",
+    description: "Provides dissolved oxygen to biological treatment in CASS basins via blowers and air-inlet valves.",
+    equipmentIds: ["BLOWER1", "BLOWER2", "BLOWER3", "BLOWER4", "AIR1", "AIR2"],
+    setpointIds:  ["sp-do-cass1", "sp-do-cass2", "sp-pt-header", "sp-sw-blw"],
+  },
+  {
+    id: "up-recirc",
+    name: "Re-Circulation",
+    description: "Re-circulates mixed liquor between basin zones to maintain biological activity.",
+    equipmentIds: ["RECIRC_A1", "RECIRC_A2", "RECIRC_B1", "RECIRC_B2"],
+    setpointIds:  ["sp-lt-uffeed"],
+  },
+  {
+    id: "up-decant",
+    name: "Decanting",
+    description: "Removes treated effluent at the end of each SBR cycle.",
+    equipmentIds: ["DECANTER", "SBR1_INLET", "SBR2_INLET"],
+    setpointIds:  [],
+  },
+  {
+    id: "up-permeate",
+    name: "Permeate Transfer",
+    description: "Transfers permeate from UF outlet to storage at controlled flow rate.",
+    equipmentIds: ["SLUDGE_A1", "SLUDGE_A2"],
+    setpointIds:  ["sp-flow-perm"],
+  },
+];
+
 window.SP_TYPE_UNIT = {
   "DO":              "mg/L",
   "PT":              "bar",

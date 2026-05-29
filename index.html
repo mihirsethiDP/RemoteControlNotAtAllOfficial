@@ -69,16 +69,13 @@
       Group Control
     </button>
     <button class="dp-group-btn alt" id="openSetPoints">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h6"/><path d="M14 12h6"/><circle cx="12" cy="12" r="2"/><path d="M12 6V3"/><path d="M12 21v-3"/></svg>
-      Set Points
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Unit Processes
     </button>
-    <div class="dp-page-select">
-      <select id="pageSelect">
-        <option value="layout">Plant Layout</option>
-        <option value="config">Set Point Configuration</option>
-      </select>
-      <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2,3 L5,7 L8,3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </div>
+    <button class="dp-mode-toggle" id="configToggle" aria-pressed="false" title="Toggle configuration mode">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span class="mode-label">Client view</span>
+    </button>
   </div>
 </div>
 
@@ -109,9 +106,9 @@
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h6"/><path d="M14 12h6"/><circle cx="12" cy="12" r="2"/><path d="M12 6V3"/><path d="M12 21v-3"/></svg>
       </span>
       <div>
-        <div class="dp-side-overline">SET POINTS</div>
+        <div class="dp-side-overline">UNIT PROCESSES</div>
         <div class="dp-side-title">Adani SBR Group</div>
-        <div class="dp-side-sub"><b id="spDrawerCount">12</b> configured · click Edit to override</div>
+        <div class="dp-side-sub"><b id="spDrawerCount">0</b> unit processes · <b id="spCount">0</b> set points</div>
       </div>
     </div>
     <button class="dp-side-close" id="closeSetPoints">✕</button>
@@ -119,13 +116,12 @@
   <div class="sp-drawer-toolbar">
     <div class="sp-drawer-search">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-      <input type="search" id="spDrawerSearch" placeholder="Search by name, equipment or HMI tag…" />
+      <input type="search" id="spDrawerSearch" placeholder="Search unit process, set point or HMI tag…" />
     </div>
-    <select id="spDrawerTypeFilter" class="sp-drawer-select">
-      <option value="">All types</option>
-      <option>Level</option><option>DO</option><option>Differential Pressure</option><option>Differential Pressure (calculated)</option>
-      <option>pH</option><option>FRC</option><option>ORP</option><option>Flow</option><option>Time</option>
-    </select>
+  </div>
+  <div class="config-mode-banner hidden" id="configBanner">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+    <span>Configuration mode — you can add or remove equipment & set points per unit process.</span>
   </div>
   <div class="sp-drawer-body" id="spDrawerBody"></div>
 </aside>
@@ -214,6 +210,45 @@
     <div class="rl-foot">
       <span>TLS 1.3 · AES-256-GCM</span>
       <span id="rlFootStatus">handshake in progress…</span>
+    </div>
+  </div>
+</div>
+
+<!-- PROCESSING OVERLAY -->
+<div id="procOverlay" class="modal hidden">
+  <div class="modal-card proc-card">
+    <div class="proc-spinner"><div class="ring"></div><div class="ring"></div></div>
+    <h2 id="procTitle">Updating set point</h2>
+    <p class="muted" id="procSub">Writing the new value to the PLC…</p>
+    <div class="proc-steps">
+      <div class="ps" data-step="1"><span class="dot"></span><span>Validating</span></div>
+      <div class="ps" data-step="2"><span class="dot"></span><span>Sending to server</span></div>
+      <div class="ps" data-step="3"><span class="dot"></span><span>PLC confirmation</span></div>
+    </div>
+    <div class="proc-fallback-note">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>
+      <span>PLC fallback logic is unchanged. The PLC continues to protect equipment under fault conditions.</span>
+    </div>
+  </div>
+</div>
+
+<!-- NOTIFICATION CONFIG POPOVER -->
+<div id="notifyPopover" class="modal hidden">
+  <div class="modal-card notify-card">
+    <div class="sp-modal-head">
+      <h2 id="notifyTitle">Notify on change</h2>
+      <button class="sp-modal-x" id="notifyClose">✕</button>
+    </div>
+    <div class="sp-modal-body">
+      <p class="muted">Select recipients and channels for this set point. Recipients will be notified whenever the value changes.</p>
+      <div class="notify-section-label">Recipients</div>
+      <div class="notify-users" id="notifyUsers"></div>
+      <div class="notify-section-label">Channels</div>
+      <div class="notify-channels" id="notifyChannels"></div>
+    </div>
+    <div class="sp-modal-foot">
+      <button class="dp-btn ghost" id="notifyCancel">Cancel</button>
+      <button class="dp-btn primary" id="notifySave">Save preferences</button>
     </div>
   </div>
 </div>

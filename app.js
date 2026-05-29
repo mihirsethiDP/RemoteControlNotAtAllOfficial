@@ -709,7 +709,6 @@ function openInlineEdit(tile, sp) {
 // Page switcher
 // =====================================================================
 function switchPage(p) {
-  if (p === "config") { window.location.href = "configuration/"; return; }
   document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
   $("#view-layout").classList.remove("hidden");
   requestAnimationFrame(renderScada);
@@ -732,27 +731,118 @@ function closeSetPointsDrawer() {
     document.getElementById("dpMain").classList.remove("side-open");
   }
 }
+let configMode = false;
+
 function renderSpDrawer() {
   const body = $("#spDrawerBody"); if (!body) return;
-  const all = window.SETPOINTS || [];
-  $("#spDrawerCount").textContent = all.length;
-  const sps = all.filter(sp => {
-    if (spDrawerFilters.type && sp.type !== spDrawerFilters.type) return false;
-    if (spDrawerFilters.search) {
-      const hay = (sp.name + " " + sp.equipment + " " + sp.type + " " + (sp.hmiTag||"")).toLowerCase();
-      if (!hay.includes(spDrawerFilters.search)) return false;
-    }
-    return true;
+  const ups = window.UNIT_PROCESSES || [];
+  const allSps = window.SETPOINTS || [];
+  $("#spDrawerCount").textContent = ups.length;
+  if ($("#spCount")) $("#spCount").textContent = allSps.length;
+
+  const search = (spDrawerFilters.search || "").toLowerCase();
+  const filteredUps = ups.filter(up => {
+    if (!search) return true;
+    if (up.name.toLowerCase().includes(search)) return true;
+    return up.setpointIds.some(spid => {
+      const sp = allSps.find(s => s.id === spid);
+      return sp && ((sp.name + " " + (sp.hmiTag||"") + " " + sp.type).toLowerCase().includes(search));
+    });
   });
   body.innerHTML = "";
-  if (!sps.length) {
-    const empty = document.createElement("div");
-    empty.className = "sp-drawer-empty";
-    empty.textContent = "No set points match this filter.";
-    body.appendChild(empty);
+  if (!filteredUps.length) {
+    body.innerHTML = `<div class="sp-drawer-empty">No unit processes match this search.</div>`;
     return;
   }
-  for (const sp of sps) body.appendChild(renderSpdCard(sp));
+  for (const up of filteredUps) body.appendChild(renderUpCard(up));
+
+  // Config mode footer: + Add unit process (not implemented; placeholder note)
+  if (configMode) {
+    const foot = document.createElement("div");
+    foot.className = "up-config-foot";
+    foot.innerHTML = `<span>Unit processes are detected automatically by the platform algorithm. Edit equipment & set points per unit process inside each card.</span>`;
+    body.appendChild(foot);
+  }
+}
+
+function renderUpCard(up) {
+  const card = document.createElement("div");
+  card.className = "up-card";
+  card.dataset.upId = up.id;
+  const setpoints = up.setpointIds.map(id => (window.SETPOINTS||[]).find(s=>s.id===id)).filter(Boolean);
+  card.innerHTML = `
+    <div class="up-head" data-up-toggle>
+      <div class="up-tile">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      </div>
+      <div class="up-meta">
+        <div class="up-name">${up.name}</div>
+        <div class="up-sub"><b>${up.equipmentIds.length}</b> equipment · <b>${setpoints.length}</b> set point${setpoints.length===1?"":"s"}</div>
+      </div>
+      <span class="up-chev" aria-hidden="true">▾</span>
+    </div>
+    <div class="up-expand">
+      <p class="up-desc">${up.description||""}</p>
+      <div class="up-section-row">
+        <div class="up-section-label">Equipment</div>
+        ${configMode ? `<button class="up-add-eq" data-add-eq>+ Add equipment</button>` : ""}
+      </div>
+      <div class="up-equip" data-equip-chips></div>
+      <div class="up-section-row">
+        <div class="up-section-label">Set Points</div>
+        ${configMode ? `<button class="up-add-sp" data-add-sp>+ Add set point</button>` : ""}
+      </div>
+      <div class="up-sp-list" data-sp-list></div>
+    </div>
+  `;
+  card.querySelector("[data-up-toggle]").addEventListener("click", () => toggleUpCard(card, up));
+  return card;
+}
+
+function toggleUpCard(card, up) {
+  const isOpen = card.classList.contains("expanded");
+  // Close peers
+  document.querySelectorAll(".up-card.expanded").forEach(c => { if (c !== card) c.classList.remove("expanded"); });
+  if (isOpen) { card.classList.remove("expanded"); return; }
+  card.classList.add("expanded");
+  populateUpExpansion(card, up);
+}
+
+function populateUpExpansion(card, up) {
+  // Equipment chips
+  const equipHost = card.querySelector("[data-equip-chips]");
+  equipHost.innerHTML = "";
+  for (const eqId of up.equipmentIds) {
+    const dev = DEVICES[eqId];
+    const chip = document.createElement("span");
+    chip.className = "up-equip-chip";
+    chip.innerHTML = `<span>${dev?dev.name:eqId}</span>${configMode?`<button class="chip-x" data-remove-eq="${eqId}" title="Remove">✕</button>`:""}`;
+    equipHost.appendChild(chip);
+  }
+  if (configMode) {
+    equipHost.querySelectorAll("[data-remove-eq]").forEach(b => b.addEventListener("click", e => {
+      e.stopPropagation();
+      const id = b.dataset.removeEq;
+      up.equipmentIds = up.equipmentIds.filter(x => x !== id);
+      populateUpExpansion(card, up);
+      // Update counts
+      card.querySelector(".up-sub").innerHTML = `<b>${up.equipmentIds.length}</b> equipment · <b>${up.setpointIds.length}</b> set point${up.setpointIds.length===1?"":"s"}`;
+    }));
+    card.querySelector("[data-add-eq]")?.addEventListener("click", e => { e.stopPropagation(); openAddEquipmentPopover(card, up); });
+  }
+
+  // Set point cards (nested)
+  const spList = card.querySelector("[data-sp-list]");
+  spList.innerHTML = "";
+  const setpoints = up.setpointIds.map(id => (window.SETPOINTS||[]).find(s=>s.id===id)).filter(Boolean);
+  if (!setpoints.length) {
+    spList.innerHTML = `<div class="up-empty">No set points configured.${configMode ? "" : " Switch to Configure to add some."}</div>`;
+  } else {
+    for (const sp of setpoints) spList.appendChild(renderSpdCard(sp, up));
+  }
+  if (configMode) {
+    card.querySelector("[data-add-sp]")?.addEventListener("click", e => { e.stopPropagation(); openAddSetpointForm(card, up); });
+  }
 }
 
 function stepFor(unit) {
@@ -775,22 +865,29 @@ function spRangeText(sp) {
   return `${sp.min} – ${sp.max} ${sp.unit}`;
 }
 
-function renderSpdCard(sp) {
+function renderSpdCard(sp, up) {
   const card = document.createElement("div");
   card.className = "spd-card" + (sp.active ? "" : " disabled");
   card.dataset.spId = sp.id;
   const typeShort = sp.type.split(" ")[0].slice(0,3).toUpperCase();
   card.innerHTML = `
-    <div class="spd-card-head" data-spd-toggle>
+    <div class="spd-card-head">
       <div class="spd-tile">${typeShort}</div>
       <div class="spd-meta">
         <div class="spd-name">${sp.name}</div>
-        <div class="spd-eq">${sp.equipment}</div>
+        <div class="spd-eq">${sp.type}</div>
       </div>
-      <span class="spd-chev" aria-hidden="true">▾</span>
+      <div class="spd-head-actions">
+        <button class="ic-pill" title="Notification preferences" data-sp-notify>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+        </button>
+        ${configMode ? `<button class="ic-pill danger" title="Delete set point" data-sp-delete>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+        </button>` : ""}
+      </div>
     </div>
-    <div class="spd-hmi" data-spd-toggle><span class="lbl">HMI</span><code>${sp.hmiTag||"—"}</code></div>
-    <div class="spd-readout" data-spd-toggle>
+    <div class="spd-hmi"><span class="lbl">HMI</span><code>${sp.hmiTag||"—"}</code></div>
+    <div class="spd-readout">
       <div class="spd-readout-cell">
         <span class="lbl">CURRENT</span>
         <span class="v">${spLiveText(sp)}</span>
@@ -800,17 +897,26 @@ function renderSpdCard(sp) {
         <span class="v muted">${spRangeText(sp)}</span>
       </div>
     </div>
+    <div class="spd-card-actions">
+      <button class="dp-btn primary sm" data-spd-edit ${sp.active?"":"disabled"}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+        Edit
+      </button>
+    </div>
     <div class="spd-expand"></div>
   `;
-  // Click anywhere on the head / hmi / readout toggles expansion
-  card.querySelectorAll("[data-spd-toggle]").forEach(el => {
-    el.addEventListener("click", e => {
-      if (!sp.active) return;
-      e.stopPropagation();
-      toggleSpdCard(card, sp);
-    });
-  });
+  card.querySelector("[data-spd-edit]")?.addEventListener("click", e => { e.stopPropagation(); toggleSpdCard(card, sp); });
+  card.querySelector("[data-sp-notify]")?.addEventListener("click", e => { e.stopPropagation(); openNotifyPopover(sp); });
+  card.querySelector("[data-sp-delete]")?.addEventListener("click", e => { e.stopPropagation(); deleteSpFromUp(sp, up); });
   return card;
+}
+
+function deleteSpFromUp(sp, up) {
+  if (!confirm(`Delete "${sp.name}" from ${up.name}?`)) return;
+  up.setpointIds = up.setpointIds.filter(id => id !== sp.id);
+  window.SETPOINTS = (window.SETPOINTS||[]).filter(s => s.id !== sp.id);
+  toast(`Deleted ${sp.name}`, "ok");
+  renderSpDrawer();
 }
 
 function toggleSpdCard(card, sp) {
@@ -991,25 +1097,294 @@ function applyFromControlPopup() {
 }
 
 function commitSinglePointChange(sp, v) {
-  const from = sp.current;
-  sp.current = v;
-  sp.source = `Operator override · ${new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"})}`;
-  sp.history = sp.history || [];
-  sp.history.push({ ts: new Date().toISOString(), kind:"value", from, to:v, who:"op-mihir" });
-  toast(`Saved: ${sp.name} → ${v} ${sp.unit}`, "ok");
-  refreshSetpointAllViews(sp.id);
+  runProcessing(sp, () => {
+    const from = sp.current;
+    sp.current = v;
+    sp.source = `Operator override · ${new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"})}`;
+    sp.history = sp.history || [];
+    sp.history.push({ ts: new Date().toISOString(), kind:"value", from, to:v, who:"op-mihir" });
+    refreshSetpointAllViews(sp.id);
+  });
 }
 function commitLtChange(sp, vals) {
-  const from = { intakeMin: sp.intakeMin, intakeMax: sp.intakeMax, outletMin: sp.outletMin, outletMax: sp.outletMax };
-  Object.assign(sp, vals);
-  sp.source = `Operator override · ${new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"})}`;
-  sp.history = sp.history || [];
-  sp.history.push({ ts: new Date().toISOString(), kind:"value",
-    from: `intake ${from.intakeMin}–${from.intakeMax}${sp.unit}, outlet ${from.outletMin}–${from.outletMax}${sp.unit}`,
-    to:   `intake ${vals.intakeMin}–${vals.intakeMax}${sp.unit}, outlet ${vals.outletMin}–${vals.outletMax}${sp.unit}`,
-    who: "op-mihir" });
-  toast(`Saved: ${sp.name}`, "ok");
-  refreshSetpointAllViews(sp.id);
+  runProcessing(sp, () => {
+    const from = { intakeMin: sp.intakeMin, intakeMax: sp.intakeMax, outletMin: sp.outletMin, outletMax: sp.outletMax };
+    Object.assign(sp, vals);
+    sp.source = `Operator override · ${new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"})}`;
+    sp.history = sp.history || [];
+    sp.history.push({ ts: new Date().toISOString(), kind:"value",
+      from: `intake ${from.intakeMin}–${from.intakeMax}${sp.unit}, outlet ${from.outletMin}–${from.outletMax}${sp.unit}`,
+      to:   `intake ${vals.intakeMin}–${vals.intakeMax}${sp.unit}, outlet ${vals.outletMin}–${vals.outletMax}${sp.unit}`,
+      who: "op-mihir" });
+    refreshSetpointAllViews(sp.id);
+  });
+}
+
+// =====================================================================
+// Processing overlay — appears after a set-point change is submitted
+// =====================================================================
+function runProcessing(sp, onDone) {
+  const overlay = document.getElementById("procOverlay");
+  if (!overlay) { onDone?.(); return; }
+  const title = document.getElementById("procTitle");
+  const sub = document.getElementById("procSub");
+  const steps = overlay.querySelectorAll(".ps");
+  title.textContent = `Updating ${sp.name}`;
+  sub.textContent = "Writing the new value to the PLC…";
+  steps.forEach(s => s.classList.remove("active","done"));
+  overlay.classList.remove("hidden");
+  setTimeout(() => steps[0].classList.add("active"), 50);
+  setTimeout(() => { steps[0].classList.add("done"); steps[1].classList.add("active"); }, 900);
+  setTimeout(() => { steps[1].classList.add("done"); steps[2].classList.add("active"); }, 1900);
+  setTimeout(() => {
+    steps[2].classList.add("done");
+    title.textContent = "Set point applied";
+    sub.textContent = "PLC confirmed the new value. Fallback logic unaffected.";
+  }, 2700);
+  setTimeout(() => {
+    overlay.classList.add("hidden");
+    toast(`Saved: ${sp.name}`, "ok");
+    onDone?.();
+  }, 3300);
+}
+
+// =====================================================================
+// Notification preferences popover
+// =====================================================================
+let notifyTargetSpId = null;
+function openNotifyPopover(sp) {
+  notifyTargetSpId = sp.id;
+  const modal = document.getElementById("notifyPopover");
+  document.getElementById("notifyTitle").textContent = `Notify on change · ${sp.name}`;
+  const usersHost = document.getElementById("notifyUsers");
+  const chansHost = document.getElementById("notifyChannels");
+  usersHost.innerHTML = ""; chansHost.innerHTML = "";
+  const prefs = sp.notify || { users: [], channels: [] };
+  for (const u of (window.NOTIFY_USERS||[])) {
+    const checked = prefs.users.includes(u.id);
+    usersHost.insertAdjacentHTML("beforeend", `
+      <label class="notify-row"><input type="checkbox" data-user="${u.id}" ${checked?"checked":""}>
+        <span><b>${u.name}</b><small>${u.role}</small></span></label>`);
+  }
+  for (const ch of (window.NOTIFY_CHANNELS||[])) {
+    const checked = prefs.channels.includes(ch);
+    chansHost.insertAdjacentHTML("beforeend", `
+      <label class="notify-chip"><input type="checkbox" data-channel="${ch}" ${checked?"checked":""}><span>${ch}</span></label>`);
+  }
+  modal.classList.remove("hidden");
+}
+function closeNotifyPopover() { document.getElementById("notifyPopover")?.classList.add("hidden"); notifyTargetSpId = null; }
+function saveNotifyPopover() {
+  if (!notifyTargetSpId) return;
+  const sp = (window.SETPOINTS||[]).find(x => x.id === notifyTargetSpId); if (!sp) return;
+  const users = Array.from(document.querySelectorAll("#notifyUsers input:checked")).map(i => i.dataset.user);
+  const channels = Array.from(document.querySelectorAll("#notifyChannels input:checked")).map(i => i.dataset.channel);
+  sp.notify = { users, channels };
+  toast(`Notification preferences saved · ${users.length} user${users.length===1?"":"s"} · ${channels.length} channel${channels.length===1?"":"s"}`, "ok");
+  closeNotifyPopover();
+}
+
+// =====================================================================
+// Add equipment to a unit process
+// =====================================================================
+function openAddEquipmentPopover(card, up) {
+  // Inline picker — append a small popover inside the card
+  const existing = card.querySelector(".up-eq-picker");
+  if (existing) { existing.remove(); return; }
+  const popover = document.createElement("div");
+  popover.className = "up-eq-picker";
+  const available = Object.keys(DEVICES).filter(id => !up.equipmentIds.includes(id));
+  popover.innerHTML = `
+    <div class="up-eq-picker-head">Add equipment to ${up.name}</div>
+    <div class="up-eq-picker-list">
+      ${available.length ? available.map(id => `<button class="up-eq-pick" data-id="${id}">${DEVICES[id].name}</button>`).join("") : '<div class="up-empty" style="margin:8px 0">All equipment already added.</div>'}
+    </div>
+  `;
+  card.querySelector(".up-equip").after(popover);
+  popover.querySelectorAll(".up-eq-pick").forEach(b => b.addEventListener("click", () => {
+    up.equipmentIds.push(b.dataset.id);
+    populateUpExpansion(card, up);
+    card.querySelector(".up-sub").innerHTML = `<b>${up.equipmentIds.length}</b> equipment · <b>${up.setpointIds.length}</b> set point${up.setpointIds.length===1?"":"s"}`;
+  }));
+}
+
+// =====================================================================
+// Add set point to a unit process — inline form with type-specific fields
+// =====================================================================
+function openAddSetpointForm(card, up) {
+  const existing = card.querySelector(".up-add-sp-form");
+  if (existing) { existing.remove(); return; }
+  const form = document.createElement("div");
+  form.className = "up-add-sp-form";
+  form.innerHTML = `
+    <div class="up-add-sp-head">Add set point to ${up.name}</div>
+    <div class="form-row">
+      <label>Type</label>
+      <select data-f="type">
+        <option value="DO">DO (Dissolved Oxygen)</option>
+        <option value="PT">PT (Pressure Transmitter)</option>
+        <option value="LT">LT (Transfer Pump)</option>
+        <option value="Flow">Flow</option>
+        <option value="Switchover Time">Switchover Time</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Name</label>
+      <input type="text" data-f="name" placeholder="e.g. DO target — Zone-3" />
+    </div>
+    <div class="form-row">
+      <label>HMI Tag</label>
+      <div class="hmi-readonly"><code data-f="hmi-preview">—</code><span class="muted">auto-generated</span></div>
+    </div>
+    <div class="form-schema" data-schema></div>
+    <div class="form-row form-error hidden" data-error></div>
+    <div class="form-actions">
+      <button class="dp-btn ghost sm" data-cancel>Cancel</button>
+      <button class="dp-btn primary sm" data-save>Save set point</button>
+    </div>
+  `;
+  card.querySelector("[data-sp-list]").appendChild(form);
+
+  const updateHmi = () => {
+    const t = form.querySelector("[data-f=type]").value;
+    const i = (up.setpointIds.length || 0) + 1;
+    form.querySelector("[data-f=hmi-preview]").textContent = window.generateHmiTag(up.name, t, i);
+  };
+  const renderSchema = () => {
+    const t = form.querySelector("[data-f=type]").value;
+    const host = form.querySelector("[data-schema]");
+    const unit = (window.SP_TYPE_UNIT||{})[t] || "";
+    if (t === "LT") {
+      host.innerHTML = `
+        <div class="form-section-label">Transfer pump tank levels <span class="muted">(0–100 ${unit})</span></div>
+        <div class="form-grid-2">
+          <div class="form-row"><label>Intake Min</label><div class="form-input"><input type="number" step="any" data-f="intakeMin" min="0" max="100"><span class="u">${unit}</span></div></div>
+          <div class="form-row"><label>Intake Max</label><div class="form-input"><input type="number" step="any" data-f="intakeMax" min="0" max="100"><span class="u">${unit}</span></div></div>
+          <div class="form-row"><label>Outlet Min</label><div class="form-input"><input type="number" step="any" data-f="outletMin" min="0" max="100"><span class="u">${unit}</span></div></div>
+          <div class="form-row"><label>Outlet Max</label><div class="form-input"><input type="number" step="any" data-f="outletMax" min="0" max="100"><span class="u">${unit}</span></div></div>
+        </div>
+      `;
+    } else if (t === "PT") {
+      host.innerHTML = `
+        <div class="form-section-label">Pressure thresholds</div>
+        <div class="form-grid-2">
+          <div class="form-row"><label>Max <span class="req">required</span></label><div class="form-input"><input type="number" step="any" data-f="max"><span class="u">${unit}</span></div></div>
+          <div class="form-row"><label>Min (optional)</label><div class="form-input"><input type="number" step="any" data-f="min"><span class="u">${unit}</span></div></div>
+        </div>
+      `;
+    } else if (t === "Switchover Time") {
+      host.innerHTML = `
+        <div class="form-section-label">Switchover duration</div>
+        <div class="form-grid-2">
+          <div class="form-row"><label>Current</label><div class="form-input"><input type="number" step="1" data-f="current"><span class="u">${unit}</span></div></div>
+          <div class="form-row"><label>Max allowed</label><div class="form-input"><input type="number" step="1" data-f="max"><span class="u">${unit}</span></div></div>
+        </div>
+      `;
+    } else {
+      host.innerHTML = `
+        <div class="form-section-label">Allowed range</div>
+        <div class="form-grid-2">
+          <div class="form-row"><label>Minimum</label><div class="form-input"><input type="number" step="any" data-f="min"><span class="u">${unit}</span></div></div>
+          <div class="form-row"><label>Maximum</label><div class="form-input"><input type="number" step="any" data-f="max"><span class="u">${unit}</span></div></div>
+        </div>
+      `;
+    }
+    // Live min>max validation
+    host.querySelectorAll('input[data-f="min"],input[data-f="max"],input[data-f="intakeMin"],input[data-f="intakeMax"],input[data-f="outletMin"],input[data-f="outletMax"]').forEach(i => {
+      i.addEventListener("input", () => validateForm(form, t));
+    });
+  };
+
+  form.querySelector("[data-f=type]").addEventListener("change", () => { updateHmi(); renderSchema(); });
+  form.querySelector("[data-f=name]").addEventListener("input", updateHmi);
+  form.querySelector("[data-cancel]").addEventListener("click", () => form.remove());
+  form.querySelector("[data-save]").addEventListener("click", () => saveNewSetpoint(form, up, card));
+  updateHmi();
+  renderSchema();
+}
+
+function validateForm(form, type) {
+  const errBox = form.querySelector("[data-error]");
+  errBox.classList.add("hidden"); errBox.textContent = "";
+  form.querySelectorAll(".form-input").forEach(el => el.classList.remove("invalid"));
+  let problems = [];
+
+  const num = sel => parseFloat(form.querySelector(`[data-f="${sel}"]`)?.value);
+
+  if (type === "LT") {
+    const iMin = num("intakeMin"), iMax = num("intakeMax"), oMin = num("outletMin"), oMax = num("outletMax");
+    if (!isNaN(iMin) && (iMin < 0 || iMin > 100)) { markInvalid(form,"intakeMin"); problems.push("Intake Min must be between 0 and 100 %"); }
+    if (!isNaN(iMax) && (iMax < 0 || iMax > 100)) { markInvalid(form,"intakeMax"); problems.push("Intake Max must be between 0 and 100 %"); }
+    if (!isNaN(oMin) && (oMin < 0 || oMin > 100)) { markInvalid(form,"outletMin"); problems.push("Outlet Min must be between 0 and 100 %"); }
+    if (!isNaN(oMax) && (oMax < 0 || oMax > 100)) { markInvalid(form,"outletMax"); problems.push("Outlet Max must be between 0 and 100 %"); }
+    if (!isNaN(iMin) && !isNaN(iMax) && iMin >= iMax) { markInvalid(form,"intakeMin"); markInvalid(form,"intakeMax"); problems.push("Intake Min must be less than Intake Max"); }
+    if (!isNaN(oMin) && !isNaN(oMax) && oMin >= oMax) { markInvalid(form,"outletMin"); markInvalid(form,"outletMax"); problems.push("Outlet Min must be less than Outlet Max"); }
+  } else {
+    const mi = num("min"), mx = num("max");
+    if (!isNaN(mi) && !isNaN(mx) && mi >= mx) { markInvalid(form,"min"); markInvalid(form,"max"); problems.push("Min must be less than Max"); }
+  }
+
+  if (problems.length) {
+    errBox.textContent = problems.join(" · ");
+    errBox.classList.remove("hidden");
+    return false;
+  }
+  return true;
+}
+function markInvalid(form, key) {
+  form.querySelector(`[data-f="${key}"]`)?.closest(".form-input")?.classList.add("invalid");
+}
+
+function saveNewSetpoint(form, up, card) {
+  const type = form.querySelector("[data-f=type]").value;
+  const name = form.querySelector("[data-f=name]").value.trim();
+  if (!name) return toast("Name is required", "bad");
+  if (!validateForm(form, type)) return toast("Fix the highlighted errors", "bad");
+  const hmiTag = window.generateHmiTag(up.name, type, (up.setpointIds.length||0)+1);
+  const unit = (window.SP_TYPE_UNIT||{})[type] || "";
+  const num = sel => parseFloat(form.querySelector(`[data-f="${sel}"]`)?.value);
+  const id = "sp-" + Date.now().toString(36);
+  const sp = { id, type, name, hmiTag, unit, active:true, equipment: up.name, targets: [...up.equipmentIds], source: "Created · " + new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"}), history: [] };
+  if (type === "LT") {
+    const iMin = num("intakeMin"), iMax = num("intakeMax"), oMin = num("outletMin"), oMax = num("outletMax");
+    if ([iMin,iMax,oMin,oMax].some(isNaN)) return toast("All four values are required", "bad");
+    Object.assign(sp, { intakeMin:iMin, intakeMax:iMax, outletMin:oMin, outletMax:oMax, min:iMin, max:iMax, current: (iMin+iMax)/2 });
+  } else if (type === "PT") {
+    const mx = num("max"), miRaw = form.querySelector("[data-f=min]").value;
+    if (isNaN(mx)) return toast("Max is required", "bad");
+    const mi = miRaw === "" ? null : parseFloat(miRaw);
+    Object.assign(sp, { min:mi, max:mx, current: mx*0.6 });
+  } else if (type === "Switchover Time") {
+    const cur = num("current"), mx = num("max");
+    if (isNaN(cur) || isNaN(mx)) return toast("Both fields required", "bad");
+    Object.assign(sp, { min:1, max:mx, current:cur });
+  } else {
+    const mi = num("min"), mx = num("max");
+    if (isNaN(mi) || isNaN(mx)) return toast("Min and Max required", "bad");
+    Object.assign(sp, { min:mi, max:mx, current: (mi+mx)/2 });
+  }
+  (window.SETPOINTS||[]).push(sp);
+  up.setpointIds.push(id);
+  toast(`Added: ${name}`, "ok");
+  form.remove();
+  populateUpExpansion(card, up);
+  card.querySelector(".up-sub").innerHTML = `<b>${up.equipmentIds.length}</b> equipment · <b>${up.setpointIds.length}</b> set point${up.setpointIds.length===1?"":"s"}`;
+}
+
+// =====================================================================
+// Config mode toggle
+// =====================================================================
+function toggleConfigMode() {
+  configMode = !configMode;
+  document.body.classList.toggle("config-mode", configMode);
+  document.getElementById("configBanner")?.classList.toggle("hidden", !configMode);
+  const btn = document.getElementById("configToggle");
+  if (btn) {
+    btn.setAttribute("aria-pressed", configMode ? "true" : "false");
+    btn.querySelector(".mode-label").textContent = configMode ? "Configuration mode" : "Client view";
+  }
+  // Re-render drawer with config affordances
+  renderSpDrawer();
 }
 
 // Warning popup — value outside safe range
@@ -1243,7 +1618,10 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#openSetPoints")?.addEventListener("click", openSetPointsDrawer);
   $("#closeSetPoints")?.addEventListener("click", closeSetPointsDrawer);
   $("#spDrawerSearch")?.addEventListener("input", e => { spDrawerFilters.search = e.target.value.toLowerCase(); renderSpDrawer(); });
-  $("#spDrawerTypeFilter")?.addEventListener("change", e => { spDrawerFilters.type = e.target.value; renderSpDrawer(); });
+  $("#configToggle")?.addEventListener("click", toggleConfigMode);
+  $("#notifyClose")?.addEventListener("click", closeNotifyPopover);
+  $("#notifyCancel")?.addEventListener("click", closeNotifyPopover);
+  $("#notifySave")?.addEventListener("click", saveNotifyPopover);
 
   // Set point notice modal (legacy)
   $("#spNoticeCancel")?.addEventListener("click", () => { document.getElementById("spNotice").classList.add("hidden"); pendingSp = null; });
