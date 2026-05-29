@@ -429,12 +429,16 @@ function attemptToggle(id, nextOn) {
 function openGroupPanel() {
   document.getElementById("groupPanel").classList.remove("hidden");
   document.getElementById("dpMain").classList.add("side-open");
+  document.body.classList.add("side-drawer-open");
   renderEquipmentList();
   toast("Group Control opened · select equipment to control", "ok");
 }
 function closeGroupPanel() {
   document.getElementById("groupPanel").classList.add("hidden");
-  document.getElementById("dpMain").classList.remove("side-open");
+  if (document.getElementById("setPointsPanel").classList.contains("hidden")) {
+    document.getElementById("dpMain").classList.remove("side-open");
+    document.body.classList.remove("side-drawer-open");
+  }
 }
 function renderEquipmentList() {
   const list = document.getElementById("equipList");
@@ -722,13 +726,14 @@ let spDrawerFilters = { search: "", type: "" };
 function openSetPointsDrawer() {
   document.getElementById("setPointsPanel").classList.remove("hidden");
   document.getElementById("dpMain").classList.add("side-open");
+  document.body.classList.add("side-drawer-open");
   renderSpDrawer();
 }
 function closeSetPointsDrawer() {
   document.getElementById("setPointsPanel").classList.add("hidden");
-  // Only release padding if the Group Control panel isn't also open
   if (document.getElementById("groupPanel").classList.contains("hidden")) {
     document.getElementById("dpMain").classList.remove("side-open");
+    document.body.classList.remove("side-drawer-open");
   }
 }
 let configMode = false;

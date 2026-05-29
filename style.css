@@ -591,10 +591,16 @@ a:hover { text-decoration: underline; }
   flex: 0 0 130px;
 }
 .sp-drawer-body {
-  flex: 1 1 0; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  flex: 1 1 0; min-height: 0;
+  overflow-y: auto; overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 12px 14px 24px;
   display: flex; flex-direction: column; gap: 10px;
 }
+
+/* Lock background scroll while the side drawer is open */
+body.side-drawer-open { overflow: hidden; }
 
 /* Mini operator card inside the drawer */
 .spd-card {
