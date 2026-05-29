@@ -880,6 +880,89 @@ a:hover { text-decoration: underline; }
 .notify-chip:has(input:checked) { background: var(--primary-2); color: #fff; border-color: var(--primary-2); }
 .notify-chip input { display: none; }
 
+/* =====================================================================
+   LAYOUT FITS — drawer-context overrides so inputs/sliders never overflow
+   ===================================================================== */
+
+/* Drawer body padding tightened so nested cards have breathing room */
+.dp-side.wide .sp-drawer-body { padding: 12px 12px 24px; }
+
+/* Toolbar inside drawer (no select anymore) */
+.sp-drawer-toolbar { padding: 12px 12px; }
+.sp-drawer-search input { min-width: 0; }
+
+/* Unit process card — tighten paddings */
+.up-card { margin-bottom: 8px; }
+.up-head { padding: 11px 12px; }
+.up-card.expanded .up-expand { padding: 6px 12px 12px; }
+
+/* Set-point cards inside unit process cards: compress */
+.up-card .spd-card { padding: 10px; }
+.up-card .spd-card-head { grid-template-columns: 32px 1fr auto; gap: 8px; }
+.up-card .spd-tile { width: 32px; height: 32px; font-size: 9px; border-radius: 7px; }
+.up-card .spd-meta .spd-name { font-size: 12.5px; line-height: 1.3; }
+.up-card .spd-meta .spd-eq   { font-size: 10.5px; margin-top: 1px; }
+.up-card .spd-hmi { padding: 5px 8px; }
+.up-card .spd-hmi code { font-size: 10.5px; word-break: break-all; }
+.up-card .spd-readout { padding: 8px 10px; gap: 6px; }
+.up-card .spd-readout-cell .lbl { font-size: 9px; letter-spacing: .8px; }
+.up-card .spd-readout-cell .v { font-size: 12px; word-break: break-word; }
+.up-card .spd-card-actions { margin-top: 0; }
+.up-card .ic-pill { width: 26px; height: 26px; }
+
+/* When set-point card is expanded, its inner editor is constrained */
+.up-card .spd-expand .sc-slider-row { gap: 8px; }
+.up-card .spd-expand .sc-tick { font-size: 10px; white-space: nowrap; }
+.up-card .spd-expand .sc-num-row { gap: 8px; flex-wrap: wrap; }
+.up-card .spd-expand .sc-num { flex: 1; min-width: 0; }
+.up-card .spd-expand .sc-num input { width: auto; flex: 1; min-width: 0; }
+.up-card .spd-expand .sc-marker-row { font-size: 11px; word-break: break-word; }
+
+/* LT 4-input grid: stack to single column inside the drawer */
+.up-card .spd-expand .sc-lt-grid { grid-template-columns: 1fr; gap: 8px; }
+.up-card .spd-expand .sc-lt-block { padding: 10px; }
+.up-card .spd-expand .sc-lt-row { grid-template-columns: 44px 1fr; gap: 6px; }
+.up-card .spd-expand .sc-lt-row .sc-num { width: 100%; }
+
+/* Inline 'Add set point' form: stack two-col grids; cap input widths */
+.up-add-sp-form { padding: 10px; }
+.up-add-sp-form .form-grid-2 { grid-template-columns: 1fr; gap: 6px; }
+.up-add-sp-form .form-row { margin-bottom: 6px; }
+.up-add-sp-form .form-row input,
+.up-add-sp-form .form-row select { width: 100%; box-sizing: border-box; min-width: 0; }
+.up-add-sp-form .form-input { width: 100%; }
+.up-add-sp-form .form-input input { width: 100%; min-width: 0; }
+.up-add-sp-form .hmi-readonly code { font-size: 10.5px; word-break: break-all; flex: 1; }
+
+/* Equipment chips can wrap freely; remove buttons stay small */
+.up-equip { row-gap: 5px; }
+.up-equip-chip { font-size: 11px; padding: 3px 9px; max-width: 100%; }
+.up-equip-chip > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Notification popover: ensure body fits and channels wrap */
+.notify-card { width: 420px; }
+.notify-card .sp-modal-body { padding: 14px 18px; }
+.notify-row { padding: 7px 10px; }
+.notify-row b { font-size: 12px; }
+.notify-row small { font-size: 10.5px; }
+.notify-channels { flex-wrap: wrap; gap: 6px; }
+.notify-chip { padding: 5px 10px; font-size: 11.5px; }
+
+/* Processing modal */
+.proc-card { padding: 24px 24px 18px; gap: 10px; }
+.proc-card h2 { font-size: 15px; }
+.proc-card p { font-size: 12.5px; max-width: 340px; }
+.proc-steps { gap: 14px; flex-wrap: wrap; justify-content: center; }
+.proc-fallback-note { font-size: 11px; }
+
+/* Warning override modal — keep tidy on narrow widths */
+.modal-card.sc-warn { width: 420px; }
+.sc-warn-body { font-size: 12.5px; line-height: 1.55; }
+
+/* Page strip can wrap on narrow viewports without overflowing */
+.dp-page-strip { flex-wrap: wrap; row-gap: 10px; }
+.dp-page-actions { flex-wrap: wrap; row-gap: 6px; }
+
 /* ===== Inline progressive disclosure (Set Points drawer) ===== */
 .spd-card { transition: border-color .15s, box-shadow .15s; }
 .spd-card.expanded {
