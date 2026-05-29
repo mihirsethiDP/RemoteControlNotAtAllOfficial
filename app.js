@@ -857,14 +857,10 @@ function stepFor(unit) {
 }
 
 function spLiveText(sp) {
-  if (sp.type === "LT") {
-    return `Intake ${sp.intakeMin}–${sp.intakeMax} · Outlet ${sp.outletMin}–${sp.outletMax} ${sp.unit}`;
-  }
   return `${sp.current} ${sp.unit}`;
 }
 
 function spRangeText(sp) {
-  if (sp.type === "LT") return `4 setpoints (${sp.unit})`;
   if (sp.type === "PT") return `${sp.min==null?"—":sp.min} – ${sp.max} ${sp.unit}`;
   if (sp.type === "Switchover Time") return `up to ${sp.max} ${sp.unit}`;
   return `${sp.min} – ${sp.max} ${sp.unit}`;
@@ -945,7 +941,7 @@ function toggleSpdCard(card, sp) {
 function renderSpdExpansion(card, sp) {
   const host = card.querySelector(".spd-expand");
   host.innerHTML = "";
-  const editor = (sp.type === "LT") ? buildLtEditor(sp) : buildSliderEditor(sp);
+  const editor = buildSliderEditor(sp);
   host.appendChild(editor);
   // Actions row
   const actions = document.createElement("div");
@@ -960,19 +956,6 @@ function renderSpdExpansion(card, sp) {
 }
 
 function applyFromExpansion(card, sp) {
-  if (sp.type === "LT") {
-    const vals = {};
-    card.querySelectorAll("[data-lt]").forEach(i => vals[i.dataset.lt] = parseFloat(i.value));
-    if (Object.values(vals).some(isNaN)) return toast("All four levels must be numbers", "bad");
-    if (vals.intakeMax <= vals.intakeMin) return toast("Intake Max must be greater than Intake Min", "bad");
-    if (vals.outletMax <= vals.outletMin) return toast("Outlet Max must be greater than Outlet Min", "bad");
-    const outOfRange =
-      (vals.intakeMin < (sp.intakeMin*0.5) || vals.intakeMax > (sp.intakeMax*1.5) ||
-       vals.outletMin < (sp.outletMin*0.5) || vals.outletMax > (sp.outletMax*1.5));
-    if (outOfRange) { showWarningPopup(sp, vals, true); return; }
-    commitLtChange(sp, vals);
-    return;
-  }
   const num = card.querySelector("[data-sc-num]");
   const v = parseFloat(num.value);
   if (isNaN(v)) return toast("Enter a valid number", "bad");
@@ -1224,36 +1207,48 @@ function openAddSetpointForm(card, up) {
   form.innerHTML = `
     <div class="up-add-sp-head">Add set point to ${up.name}</div>
     <div class="form-row">
-      <label>Type</label>
       <select data-f="type">
         <option value="DO">DO (Dissolved Oxygen)</option>
         <option value="PT">PT (Pressure Transmitter)</option>
-        <option value="LT">LT (Transfer Pump)</option>
+        <option value="LT">LT (Transfer Pump · 4 sub-set-points)</option>
         <option value="Flow">Flow</option>
         <option value="Switchover Time">Switchover Time</option>
       </select>
     </div>
     <div class="form-row">
-      <label>Name</label>
-      <input type="text" data-f="name" placeholder="e.g. DO target — Zone-3" />
+      <input type="text" data-f="name" placeholder="Set point name (e.g., DO target — Zone-3)" />
     </div>
-    <div class="form-row">
-      <label>HMI Tag</label>
-      <div class="hmi-readonly"><code data-f="hmi-preview">—</code><span class="muted">auto-generated</span></div>
+    <div class="hmi-readonly" data-f="hmi-block">
+      <div class="hmi-readonly-label">HMI tag <span class="muted">· auto-generated</span></div>
+      <code data-f="hmi-preview">—</code>
     </div>
     <div class="form-schema" data-schema></div>
     <div class="form-row form-error hidden" data-error></div>
     <div class="form-actions">
       <button class="dp-btn ghost sm" data-cancel>Cancel</button>
-      <button class="dp-btn primary sm" data-save>Save set point</button>
+      <button class="dp-btn primary sm" data-save>Save</button>
     </div>
   `;
   card.querySelector("[data-sp-list]").appendChild(form);
 
+  // LT sub-roles in the order they're saved
+  const LT_ROLES = [
+    { key:"sourceMin", label:"Source Tank · Min Level", role:"SOURCEMIN" },
+    { key:"sourceMax", label:"Source Tank · Max Level", role:"SOURCEMAX" },
+    { key:"destMin",   label:"Destination Tank · Min Level", role:"DESTMIN" },
+    { key:"destMax",   label:"Destination Tank · Max Level", role:"DESTMAX" },
+  ];
+
   const updateHmi = () => {
     const t = form.querySelector("[data-f=type]").value;
-    const i = (up.setpointIds.length || 0) + 1;
-    form.querySelector("[data-f=hmi-preview]").textContent = window.generateHmiTag(up.name, t, i);
+    const baseIdx = (up.setpointIds.length || 0) + 1;
+    const preview = form.querySelector("[data-f=hmi-preview]");
+    if (t === "LT") {
+      // Show 4 tags
+      preview.innerHTML = LT_ROLES.map((r, i) => `<div class="hmi-tag-line">${window.generateHmiTag(up.name, "LT", baseIdx + i, r.role)} <span class="muted">· ${r.label}</span></div>`).join("");
+    } else {
+      preview.innerHTML = window.generateHmiTag(up.name, t, baseIdx);
+    }
   };
   const renderSchema = () => {
     const t = form.querySelector("[data-f=type]").value;
@@ -1261,41 +1256,39 @@ function openAddSetpointForm(card, up) {
     const unit = (window.SP_TYPE_UNIT||{})[t] || "";
     if (t === "LT") {
       host.innerHTML = `
-        <div class="form-section-label">Transfer pump tank levels <span class="muted">(0–100 ${unit})</span></div>
-        <div class="form-grid-2">
-          <div class="form-row"><label>Intake Min</label><div class="form-input"><input type="number" step="any" data-f="intakeMin" min="0" max="100"><span class="u">${unit}</span></div></div>
-          <div class="form-row"><label>Intake Max</label><div class="form-input"><input type="number" step="any" data-f="intakeMax" min="0" max="100"><span class="u">${unit}</span></div></div>
-          <div class="form-row"><label>Outlet Min</label><div class="form-input"><input type="number" step="any" data-f="outletMin" min="0" max="100"><span class="u">${unit}</span></div></div>
-          <div class="form-row"><label>Outlet Max</label><div class="form-input"><input type="number" step="any" data-f="outletMax" min="0" max="100"><span class="u">${unit}</span></div></div>
-        </div>
+        <div class="form-section-label">Source &amp; Destination tank levels <span class="muted">· 0–100${unit}</span></div>
+        <div class="form-row"><div class="form-input"><input type="number" step="any" data-f="sourceMin" min="0" max="100" placeholder="Source tank · min level"><span class="u">${unit}</span></div></div>
+        <div class="form-row"><div class="form-input"><input type="number" step="any" data-f="sourceMax" min="0" max="100" placeholder="Source tank · max level"><span class="u">${unit}</span></div></div>
+        <div class="form-row"><div class="form-input"><input type="number" step="any" data-f="destMin"   min="0" max="100" placeholder="Destination tank · min level"><span class="u">${unit}</span></div></div>
+        <div class="form-row"><div class="form-input"><input type="number" step="any" data-f="destMax"   min="0" max="100" placeholder="Destination tank · max level"><span class="u">${unit}</span></div></div>
       `;
     } else if (t === "PT") {
       host.innerHTML = `
         <div class="form-section-label">Pressure thresholds</div>
         <div class="form-grid-2">
-          <div class="form-row"><label>Max <span class="req">required</span></label><div class="form-input"><input type="number" step="any" data-f="max"><span class="u">${unit}</span></div></div>
-          <div class="form-row"><label>Min (optional)</label><div class="form-input"><input type="number" step="any" data-f="min"><span class="u">${unit}</span></div></div>
+          <div class="form-row"><div class="form-input"><input type="number" step="any" data-f="max" placeholder="Maximum (required)"><span class="u">${unit}</span></div></div>
+          <div class="form-row"><div class="form-input"><input type="number" step="any" data-f="min" placeholder="Minimum (optional)"><span class="u">${unit}</span></div></div>
         </div>
       `;
     } else if (t === "Switchover Time") {
       host.innerHTML = `
         <div class="form-section-label">Switchover duration</div>
         <div class="form-grid-2">
-          <div class="form-row"><label>Current</label><div class="form-input"><input type="number" step="1" data-f="current"><span class="u">${unit}</span></div></div>
-          <div class="form-row"><label>Max allowed</label><div class="form-input"><input type="number" step="1" data-f="max"><span class="u">${unit}</span></div></div>
+          <div class="form-row"><div class="form-input"><input type="number" step="1" data-f="current" placeholder="Current value"><span class="u">${unit}</span></div></div>
+          <div class="form-row"><div class="form-input"><input type="number" step="1" data-f="max"     placeholder="Maximum allowed"><span class="u">${unit}</span></div></div>
         </div>
       `;
     } else {
       host.innerHTML = `
         <div class="form-section-label">Allowed range</div>
         <div class="form-grid-2">
-          <div class="form-row"><label>Minimum</label><div class="form-input"><input type="number" step="any" data-f="min"><span class="u">${unit}</span></div></div>
-          <div class="form-row"><label>Maximum</label><div class="form-input"><input type="number" step="any" data-f="max"><span class="u">${unit}</span></div></div>
+          <div class="form-row"><div class="form-input"><input type="number" step="any" data-f="min" placeholder="Minimum"><span class="u">${unit}</span></div></div>
+          <div class="form-row"><div class="form-input"><input type="number" step="any" data-f="max" placeholder="Maximum"><span class="u">${unit}</span></div></div>
         </div>
       `;
     }
     // Live min>max validation
-    host.querySelectorAll('input[data-f="min"],input[data-f="max"],input[data-f="intakeMin"],input[data-f="intakeMax"],input[data-f="outletMin"],input[data-f="outletMax"]').forEach(i => {
+    host.querySelectorAll('input[data-f="min"],input[data-f="max"],input[data-f="sourceMin"],input[data-f="sourceMax"],input[data-f="destMin"],input[data-f="destMax"]').forEach(i => {
       i.addEventListener("input", () => validateForm(form, t));
     });
   };
@@ -1317,13 +1310,13 @@ function validateForm(form, type) {
   const num = sel => parseFloat(form.querySelector(`[data-f="${sel}"]`)?.value);
 
   if (type === "LT") {
-    const iMin = num("intakeMin"), iMax = num("intakeMax"), oMin = num("outletMin"), oMax = num("outletMax");
-    if (!isNaN(iMin) && (iMin < 0 || iMin > 100)) { markInvalid(form,"intakeMin"); problems.push("Intake Min must be between 0 and 100 %"); }
-    if (!isNaN(iMax) && (iMax < 0 || iMax > 100)) { markInvalid(form,"intakeMax"); problems.push("Intake Max must be between 0 and 100 %"); }
-    if (!isNaN(oMin) && (oMin < 0 || oMin > 100)) { markInvalid(form,"outletMin"); problems.push("Outlet Min must be between 0 and 100 %"); }
-    if (!isNaN(oMax) && (oMax < 0 || oMax > 100)) { markInvalid(form,"outletMax"); problems.push("Outlet Max must be between 0 and 100 %"); }
-    if (!isNaN(iMin) && !isNaN(iMax) && iMin >= iMax) { markInvalid(form,"intakeMin"); markInvalid(form,"intakeMax"); problems.push("Intake Min must be less than Intake Max"); }
-    if (!isNaN(oMin) && !isNaN(oMax) && oMin >= oMax) { markInvalid(form,"outletMin"); markInvalid(form,"outletMax"); problems.push("Outlet Min must be less than Outlet Max"); }
+    const sMin = num("sourceMin"), sMax = num("sourceMax"), dMin = num("destMin"), dMax = num("destMax");
+    if (!isNaN(sMin) && (sMin < 0 || sMin > 100)) { markInvalid(form,"sourceMin"); problems.push("Source Tank Min must be 0–100%"); }
+    if (!isNaN(sMax) && (sMax < 0 || sMax > 100)) { markInvalid(form,"sourceMax"); problems.push("Source Tank Max must be 0–100%"); }
+    if (!isNaN(dMin) && (dMin < 0 || dMin > 100)) { markInvalid(form,"destMin");   problems.push("Destination Tank Min must be 0–100%"); }
+    if (!isNaN(dMax) && (dMax < 0 || dMax > 100)) { markInvalid(form,"destMax");   problems.push("Destination Tank Max must be 0–100%"); }
+    if (!isNaN(sMin) && !isNaN(sMax) && sMin >= sMax) { markInvalid(form,"sourceMin"); markInvalid(form,"sourceMax"); problems.push("Source Min must be less than Source Max"); }
+    if (!isNaN(dMin) && !isNaN(dMax) && dMin >= dMax) { markInvalid(form,"destMin");   markInvalid(form,"destMax");   problems.push("Destination Min must be less than Destination Max"); }
   } else {
     const mi = num("min"), mx = num("max");
     if (!isNaN(mi) && !isNaN(mx) && mi >= mx) { markInvalid(form,"min"); markInvalid(form,"max"); problems.push("Min must be less than Max"); }
@@ -1345,32 +1338,61 @@ function saveNewSetpoint(form, up, card) {
   const name = form.querySelector("[data-f=name]").value.trim();
   if (!name) return toast("Name is required", "bad");
   if (!validateForm(form, type)) return toast("Fix the highlighted errors", "bad");
-  const hmiTag = window.generateHmiTag(up.name, type, (up.setpointIds.length||0)+1);
   const unit = (window.SP_TYPE_UNIT||{})[type] || "";
   const num = sel => parseFloat(form.querySelector(`[data-f="${sel}"]`)?.value);
-  const id = "sp-" + Date.now().toString(36);
-  const sp = { id, type, name, hmiTag, unit, active:true, equipment: up.name, targets: [...up.equipmentIds], source: "Created · " + new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"}), history: [] };
+
   if (type === "LT") {
-    const iMin = num("intakeMin"), iMax = num("intakeMax"), oMin = num("outletMin"), oMax = num("outletMax");
-    if ([iMin,iMax,oMin,oMax].some(isNaN)) return toast("All four values are required", "bad");
-    Object.assign(sp, { intakeMin:iMin, intakeMax:iMax, outletMin:oMin, outletMax:oMax, min:iMin, max:iMax, current: (iMin+iMax)/2 });
-  } else if (type === "PT") {
-    const mx = num("max"), miRaw = form.querySelector("[data-f=min]").value;
-    if (isNaN(mx)) return toast("Max is required", "bad");
-    const mi = miRaw === "" ? null : parseFloat(miRaw);
-    Object.assign(sp, { min:mi, max:mx, current: mx*0.6 });
-  } else if (type === "Switchover Time") {
-    const cur = num("current"), mx = num("max");
-    if (isNaN(cur) || isNaN(mx)) return toast("Both fields required", "bad");
-    Object.assign(sp, { min:1, max:mx, current:cur });
+    const ROLES = [
+      { key:"sourceMin", label:"Source Tank · Min Level", role:"SOURCEMIN" },
+      { key:"sourceMax", label:"Source Tank · Max Level", role:"SOURCEMAX" },
+      { key:"destMin",   label:"Destination Tank · Min Level", role:"DESTMIN" },
+      { key:"destMax",   label:"Destination Tank · Max Level", role:"DESTMAX" },
+    ];
+    const vals = {};
+    for (const r of ROLES) {
+      const v = num(r.key);
+      if (isNaN(v)) return toast(`All four LT levels are required`, "bad");
+      vals[r.key] = v;
+    }
+    let idx = (up.setpointIds.length||0) + 1;
+    for (const r of ROLES) {
+      const id = "sp-" + Date.now().toString(36) + "-" + r.role.toLowerCase();
+      const sp = {
+        id, type: "LT", subRole: r.role,
+        name: `${name} · ${r.label}`,
+        hmiTag: window.generateHmiTag(up.name, "LT", idx, r.role),
+        unit: "%", current: vals[r.key], min: 0, max: 100,
+        active: true, equipment: up.name, targets: [...up.equipmentIds],
+        source: "Created · " + new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"}),
+        history: [],
+      };
+      (window.SETPOINTS||[]).push(sp);
+      up.setpointIds.push(id);
+      idx++;
+    }
+    toast(`Added 4 LT set points`, "ok");
   } else {
-    const mi = num("min"), mx = num("max");
-    if (isNaN(mi) || isNaN(mx)) return toast("Min and Max required", "bad");
-    Object.assign(sp, { min:mi, max:mx, current: (mi+mx)/2 });
+    const id = "sp-" + Date.now().toString(36);
+    const hmiTag = window.generateHmiTag(up.name, type, (up.setpointIds.length||0)+1);
+    const sp = { id, type, name, hmiTag, unit, active:true, equipment: up.name, targets: [...up.equipmentIds], source: "Created · " + new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"}), history: [] };
+    if (type === "PT") {
+      const mx = num("max"), miRaw = form.querySelector("[data-f=min]").value;
+      if (isNaN(mx)) return toast("Max is required", "bad");
+      const mi = miRaw === "" ? null : parseFloat(miRaw);
+      Object.assign(sp, { min:mi, max:mx, current: mx*0.6 });
+    } else if (type === "Switchover Time") {
+      const cur = num("current"), mx = num("max");
+      if (isNaN(cur) || isNaN(mx)) return toast("Both fields required", "bad");
+      Object.assign(sp, { min:1, max:mx, current:cur });
+    } else {
+      const mi = num("min"), mx = num("max");
+      if (isNaN(mi) || isNaN(mx)) return toast("Min and Max required", "bad");
+      Object.assign(sp, { min:mi, max:mx, current: (mi+mx)/2 });
+    }
+    (window.SETPOINTS||[]).push(sp);
+    up.setpointIds.push(id);
+    toast(`Added: ${name}`, "ok");
   }
-  (window.SETPOINTS||[]).push(sp);
-  up.setpointIds.push(id);
-  toast(`Added: ${name}`, "ok");
   form.remove();
   populateUpExpansion(card, up);
   card.querySelector(".up-sub").innerHTML = `<b>${up.equipmentIds.length}</b> equipment · <b>${up.setpointIds.length}</b> set point${up.setpointIds.length===1?"":"s"}`;

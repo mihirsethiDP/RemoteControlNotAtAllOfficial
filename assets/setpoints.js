@@ -7,10 +7,11 @@ window.SP_TYPES = ["DO", "PT", "LT", "Flow", "Switchover Time"];
 
 // Auto-generate an HMI tag from a unit process + type + index.
 // The PLC team maps this synthetic tag to the real PLC tag in their layer.
-window.generateHmiTag = function(upName, type, index) {
+window.generateHmiTag = function(upName, type, index, role) {
   const upSlug = (upName || "UP").toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "");
   const tSlug  = String(type || "SP").toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "");
-  return `${upSlug}.${tSlug}_${String(index||1).padStart(2,"0")}_SP`;
+  const rSlug  = role ? `_${String(role).toUpperCase()}` : "";
+  return `${upSlug}.${tSlug}${rSlug}_${String(index||1).padStart(2,"0")}_SP`;
 };
 
 // Mock notification recipients
@@ -37,7 +38,7 @@ window.UNIT_PROCESSES = [
     name: "Re-Circulation",
     description: "Re-circulates mixed liquor between basin zones to maintain biological activity.",
     equipmentIds: ["RECIRC_A1", "RECIRC_A2", "RECIRC_B1", "RECIRC_B2"],
-    setpointIds:  ["sp-lt-uffeed"],
+    setpointIds:  ["sp-lt-src-min", "sp-lt-src-max", "sp-lt-dst-min", "sp-lt-dst-max"],
   },
   {
     id: "up-decant",
@@ -95,22 +96,39 @@ window.SETPOINTS = [
     unit:"bar", current:0.8, min:null, max:1.5,
     active:true, source:"PLC default" },
 
-  // LT — 4 values, no single slider
-  { id:"sp-lt-uffeed", type:"LT",
-    name:"UF Feed transfer — operating range",
+  // LT — 4 SEPARATE set points (per Phase 2 update)
+  { id:"sp-lt-src-min", type:"LT", subRole:"SOURCEMIN",
+    name:"UF Feed transfer · Source Tank · Min Level",
     equipment:"Transfer Pump · UF Feed",
     targets:["RECIRC_A1","RECIRC_A2"],
-    hmiTag:"LT_201.OP_RANGE",
-    unit:"%",
-    intakeMin: 20, intakeMax: 85,
-    outletMin: 25, outletMax: 80,
+    hmiTag:"RECIRCULATION.LT_SOURCEMIN_01_SP",
+    unit:"%", current:20, min:0, max:100,
     active:true, source:"PLC default",
     history: _hist([
-      { ts:"2026-05-12T09:00:00Z", kind:"value",
-        from:"intake 25–85%, outlet 30–78%",
-        to:"intake 20–85%, outlet 25–80%",
-        who:"op-mihir", note:"Raised intake floor to avoid cavitation" },
+      { ts:"2026-05-12T09:00:00Z", kind:"value", from:25, to:20,
+        who:"op-mihir", note:"Lowered source floor to avoid cavitation" },
     ]) },
+  { id:"sp-lt-src-max", type:"LT", subRole:"SOURCEMAX",
+    name:"UF Feed transfer · Source Tank · Max Level",
+    equipment:"Transfer Pump · UF Feed",
+    targets:["RECIRC_A1","RECIRC_A2"],
+    hmiTag:"RECIRCULATION.LT_SOURCEMAX_02_SP",
+    unit:"%", current:85, min:0, max:100,
+    active:true, source:"PLC default" },
+  { id:"sp-lt-dst-min", type:"LT", subRole:"DESTMIN",
+    name:"UF Feed transfer · Destination Tank · Min Level",
+    equipment:"Transfer Pump · UF Feed",
+    targets:["RECIRC_A1","RECIRC_A2"],
+    hmiTag:"RECIRCULATION.LT_DESTMIN_03_SP",
+    unit:"%", current:25, min:0, max:100,
+    active:true, source:"PLC default" },
+  { id:"sp-lt-dst-max", type:"LT", subRole:"DESTMAX",
+    name:"UF Feed transfer · Destination Tank · Max Level",
+    equipment:"Transfer Pump · UF Feed",
+    targets:["RECIRC_A1","RECIRC_A2"],
+    hmiTag:"RECIRCULATION.LT_DESTMAX_04_SP",
+    unit:"%", current:80, min:0, max:100,
+    active:true, source:"PLC default" },
 
   // Flow — slider with Min/Max
   { id:"sp-flow-perm", type:"Flow",
