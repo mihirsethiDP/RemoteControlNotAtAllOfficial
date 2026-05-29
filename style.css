@@ -703,7 +703,9 @@ body.side-drawer-open { overflow: hidden; }
   background: #fff; border: 1px solid var(--line); border-radius: 10px;
   overflow: hidden; transition: border-color .15s, box-shadow .15s;
   margin-bottom: 10px;
+  flex: 0 0 auto;       /* don't shrink inside the column-flex drawer body */
 }
+.sp-drawer-body .spd-card { flex: 0 0 auto; }   /* same for nested set-point cards */
 .up-card.expanded { border-color: var(--primary-2); box-shadow: 0 2px 12px rgba(42,108,240,.10); }
 .up-head {
   display: grid; grid-template-columns: 38px 1fr 18px; gap: 12px; align-items: center;
