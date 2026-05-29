@@ -591,7 +591,8 @@ a:hover { text-decoration: underline; }
   flex: 0 0 130px;
 }
 .sp-drawer-body {
-  flex: 1; overflow: auto; padding: 12px 14px 24px;
+  flex: 1 1 0; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  padding: 12px 14px 24px;
   display: flex; flex-direction: column; gap: 10px;
 }
 
@@ -898,6 +899,11 @@ a:hover { text-decoration: underline; }
 
 /* Set-point cards inside unit process cards: compress */
 .up-card .spd-card { padding: 10px; }
+.up-card .spd-card > * { display: block; }
+.up-card .spd-card-head { display: grid !important; grid-template-columns: 32px 1fr auto; gap: 8px; align-items: center; min-height: 36px; }
+.up-card .spd-readout { display: grid !important; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px 10px; }
+.up-card .spd-hmi { display: flex !important; align-items: center; gap: 6px; padding: 5px 8px; }
+.up-card .spd-card-actions { display: flex !important; justify-content: flex-end; }
 .up-card .spd-card-head { grid-template-columns: 32px 1fr auto; gap: 8px; }
 .up-card .spd-tile { width: 32px; height: 32px; font-size: 9px; border-radius: 7px; }
 .up-card .spd-meta .spd-name { font-size: 12.5px; line-height: 1.3; }
