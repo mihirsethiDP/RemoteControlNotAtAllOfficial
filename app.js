@@ -836,14 +836,31 @@ function populateUpExpansion(card, up) {
     card.querySelector("[data-add-eq]")?.addEventListener("click", e => { e.stopPropagation(); openAddEquipmentPopover(card, up); });
   }
 
-  // Set point cards (nested)
+  // Set point cards (nested) — LT setpoints with the same groupId render as ONE card
   const spList = card.querySelector("[data-sp-list]");
   spList.innerHTML = "";
   const setpoints = up.setpointIds.map(id => (window.SETPOINTS||[]).find(s=>s.id===id)).filter(Boolean);
   if (!setpoints.length) {
     spList.innerHTML = `<div class="up-empty">No set points configured.${configMode ? "" : " Switch to Configure to add some."}</div>`;
   } else {
-    for (const sp of setpoints) spList.appendChild(renderSpdCard(sp, up));
+    // Group LT setpoints by groupId
+    const groupedItems = [];
+    const ltGroups = {};
+    for (const sp of setpoints) {
+      if (sp.type === "LT" && sp.groupId) {
+        if (!ltGroups[sp.groupId]) {
+          ltGroups[sp.groupId] = { isLtGroup: true, groupId: sp.groupId, groupName: sp.groupName, members: [] };
+          groupedItems.push(ltGroups[sp.groupId]);
+        }
+        ltGroups[sp.groupId].members.push(sp);
+      } else {
+        groupedItems.push(sp);
+      }
+    }
+    for (const item of groupedItems) {
+      if (item.isLtGroup) spList.appendChild(renderLtGroupCard(item, up));
+      else spList.appendChild(renderSpdCard(item, up));
+    }
   }
   if (configMode) {
     card.querySelector("[data-add-sp]")?.addEventListener("click", e => { e.stopPropagation(); openAddSetpointForm(card, up); });
@@ -917,6 +934,169 @@ function deleteSpFromUp(sp, up) {
   up.setpointIds = up.setpointIds.filter(id => id !== sp.id);
   window.SETPOINTS = (window.SETPOINTS||[]).filter(s => s.id !== sp.id);
   toast(`Deleted ${sp.name}`, "ok");
+  renderSpDrawer();
+}
+
+// ---------------- LT GROUP CARD (renders 4 LT setpoints as one) ----------------
+const LT_ROLE_LABEL = {
+  SOURCEMIN: "Source Tank · Min",
+  SOURCEMAX: "Source Tank · Max",
+  DESTMIN:   "Destination Tank · Min",
+  DESTMAX:   "Destination Tank · Max",
+};
+function _byRole(members, role) { return members.find(m => m.subRole === role); }
+
+function renderLtGroupCard(group, up) {
+  const card = document.createElement("div");
+  card.className = "spd-card lt-group-card";
+  card.dataset.groupId = group.groupId;
+  const m = group.members;
+  const srcMin = _byRole(m, "SOURCEMIN"), srcMax = _byRole(m, "SOURCEMAX");
+  const dstMin = _byRole(m, "DESTMIN"),   dstMax = _byRole(m, "DESTMAX");
+  const anyActive = m.some(s => s.active);
+  const u = m[0]?.unit || "%";
+  card.innerHTML = `
+    <div class="spd-card-head">
+      <div class="spd-tile">LT</div>
+      <div class="spd-meta">
+        <div class="spd-name">${group.groupName}</div>
+        <div class="spd-eq">LT · 4 set points</div>
+      </div>
+      <div class="spd-head-actions">
+        <button class="ic-pill" title="Notification preferences" data-lt-notify>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+        </button>
+        ${configMode ? `<button class="ic-pill danger" title="Delete group" data-lt-delete>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+        </button>` : ""}
+      </div>
+    </div>
+
+    <div class="lt-hmi-block">
+      <div class="lt-hmi-label">4 HMI TAGS · AUTO-GENERATED</div>
+      ${m.map(sp => `<div class="lt-hmi-line"><code>${sp.hmiTag}</code><span class="muted">· ${LT_ROLE_LABEL[sp.subRole]||sp.subRole}</span></div>`).join("")}
+    </div>
+
+    <div class="lt-readout">
+      <div class="lt-tank-block">
+        <div class="lt-tank-title">SOURCE TANK</div>
+        <div class="lt-row"><span class="lt-row-lbl">Min</span><span class="lt-row-val">${srcMin?.current ?? "—"} ${u}</span></div>
+        <div class="lt-row"><span class="lt-row-lbl">Max</span><span class="lt-row-val">${srcMax?.current ?? "—"} ${u}</span></div>
+      </div>
+      <div class="lt-tank-block">
+        <div class="lt-tank-title">DESTINATION TANK</div>
+        <div class="lt-row"><span class="lt-row-lbl">Min</span><span class="lt-row-val">${dstMin?.current ?? "—"} ${u}</span></div>
+        <div class="lt-row"><span class="lt-row-lbl">Max</span><span class="lt-row-val">${dstMax?.current ?? "—"} ${u}</span></div>
+      </div>
+    </div>
+
+    <div class="spd-card-actions">
+      <button class="dp-btn primary sm" data-lt-edit ${anyActive?"":"disabled"}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+        Edit
+      </button>
+    </div>
+    <div class="spd-expand"></div>
+  `;
+  card.querySelector("[data-lt-edit]")?.addEventListener("click", e => { e.stopPropagation(); toggleLtGroupCard(card, group); });
+  card.querySelector("[data-lt-notify]")?.addEventListener("click", e => { e.stopPropagation(); openNotifyPopover(m[0]); });
+  card.querySelector("[data-lt-delete]")?.addEventListener("click", e => { e.stopPropagation(); deleteLtGroup(group, up); });
+  return card;
+}
+
+function toggleLtGroupCard(card, group) {
+  const isOpen = card.classList.contains("expanded");
+  document.querySelectorAll(".spd-card.expanded").forEach(c => {
+    if (c !== card) {
+      c.classList.remove("expanded");
+      c.querySelector(".spd-expand").innerHTML = "";
+    }
+  });
+  if (isOpen) {
+    card.classList.remove("expanded");
+    card.querySelector(".spd-expand").innerHTML = "";
+    return;
+  }
+  card.classList.add("expanded");
+  renderLtGroupExpansion(card, group);
+}
+
+function renderLtGroupExpansion(card, group) {
+  const host = card.querySelector(".spd-expand");
+  const m = group.members;
+  const u = m[0]?.unit || "%";
+  const srcMin = _byRole(m,"SOURCEMIN"), srcMax = _byRole(m,"SOURCEMAX"),
+        dstMin = _byRole(m,"DESTMIN"),   dstMax = _byRole(m,"DESTMAX");
+  host.innerHTML = `
+    <div class="lt-edit-section">
+      <div class="lt-edit-title">Source Tank</div>
+      <div class="lt-edit-row">
+        <div class="form-input"><input type="number" step="0.1" min="0" max="100" data-lt-key="sourceMin" value="${srcMin?.current ?? ""}" placeholder="Min level"><span class="u">${u}</span></div>
+        <div class="form-input"><input type="number" step="0.1" min="0" max="100" data-lt-key="sourceMax" value="${srcMax?.current ?? ""}" placeholder="Max level"><span class="u">${u}</span></div>
+      </div>
+    </div>
+    <div class="lt-edit-section">
+      <div class="lt-edit-title">Destination Tank</div>
+      <div class="lt-edit-row">
+        <div class="form-input"><input type="number" step="0.1" min="0" max="100" data-lt-key="destMin" value="${dstMin?.current ?? ""}" placeholder="Min level"><span class="u">${u}</span></div>
+        <div class="form-input"><input type="number" step="0.1" min="0" max="100" data-lt-key="destMax" value="${dstMax?.current ?? ""}" placeholder="Max level"><span class="u">${u}</span></div>
+      </div>
+    </div>
+    <div class="form-error hidden" data-lt-error></div>
+    <div class="spd-expand-actions">
+      <button class="dp-btn ghost sm" data-lt-cancel>Cancel</button>
+      <button class="dp-btn primary sm" data-lt-apply>Apply set points</button>
+    </div>
+  `;
+  host.querySelector("[data-lt-cancel]").addEventListener("click", e => { e.stopPropagation(); toggleLtGroupCard(card, group); });
+  host.querySelector("[data-lt-apply]").addEventListener("click", e => { e.stopPropagation(); applyLtGroup(card, group); });
+}
+
+function applyLtGroup(card, group) {
+  const vals = {};
+  card.querySelectorAll("[data-lt-key]").forEach(i => vals[i.dataset.ltKey] = parseFloat(i.value));
+  const err = card.querySelector("[data-lt-error]");
+  const problems = [];
+  for (const k of ["sourceMin","sourceMax","destMin","destMax"]) {
+    if (isNaN(vals[k])) problems.push(`${k} is required`);
+    else if (vals[k] < 0 || vals[k] > 100) problems.push(`${k} must be 0–100%`);
+  }
+  if (!problems.length) {
+    if (vals.sourceMin >= vals.sourceMax) problems.push("Source Min must be < Source Max");
+    if (vals.destMin   >= vals.destMax)   problems.push("Destination Min must be < Destination Max");
+  }
+  if (problems.length) {
+    err.textContent = problems.join(" · ");
+    err.classList.remove("hidden");
+    return;
+  }
+  err.classList.add("hidden");
+
+  // Build a virtual "sp" for the processing overlay
+  const virtualSp = { name: group.groupName + " (all 4)", unit: group.members[0]?.unit || "%" };
+  runProcessing(virtualSp, () => {
+    const ROLE_TO_KEY = { SOURCEMIN:"sourceMin", SOURCEMAX:"sourceMax", DESTMIN:"destMin", DESTMAX:"destMax" };
+    for (const sp of group.members) {
+      const k = ROLE_TO_KEY[sp.subRole];
+      const newV = vals[k];
+      const from = sp.current;
+      if (from !== newV) {
+        sp.current = newV;
+        sp.history = sp.history || [];
+        sp.history.push({ ts: new Date().toISOString(), kind:"value", from, to: newV, who:"op-mihir" });
+        sp.source = `Operator override · ${new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"})}`;
+      }
+    }
+    renderSpDrawer();
+  });
+}
+
+function deleteLtGroup(group, up) {
+  if (!confirm(`Delete "${group.groupName}" (4 set points) from ${up.name}?`)) return;
+  const memberIds = group.members.map(m => m.id);
+  up.setpointIds = up.setpointIds.filter(id => !memberIds.includes(id));
+  window.SETPOINTS = (window.SETPOINTS||[]).filter(s => !memberIds.includes(s.id));
+  toast(`Deleted ${group.groupName} (4 set points)`, "ok");
   renderSpDrawer();
 }
 
@@ -1354,11 +1534,13 @@ function saveNewSetpoint(form, up, card) {
       if (isNaN(v)) return toast(`All four LT levels are required`, "bad");
       vals[r.key] = v;
     }
+    const groupId = "lt-" + Date.now().toString(36);
     let idx = (up.setpointIds.length||0) + 1;
     for (const r of ROLES) {
-      const id = "sp-" + Date.now().toString(36) + "-" + r.role.toLowerCase();
+      const id = groupId + "-" + r.role.toLowerCase();
       const sp = {
         id, type: "LT", subRole: r.role,
+        groupId, groupName: name,
         name: `${name} · ${r.label}`,
         hmiTag: window.generateHmiTag(up.name, "LT", idx, r.role),
         unit: "%", current: vals[r.key], min: 0, max: 100,
@@ -1370,7 +1552,7 @@ function saveNewSetpoint(form, up, card) {
       up.setpointIds.push(id);
       idx++;
     }
-    toast(`Added 4 LT set points`, "ok");
+    toast(`Added 1 LT set point group (4 HMI tags)`, "ok");
   } else {
     const id = "sp-" + Date.now().toString(36);
     const hmiTag = window.generateHmiTag(up.name, type, (up.setpointIds.length||0)+1);

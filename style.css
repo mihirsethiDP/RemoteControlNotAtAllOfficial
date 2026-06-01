@@ -808,6 +808,46 @@ body.side-drawer-open { overflow: hidden; }
 .hmi-tag-line { font-family: ui-monospace, monospace; color: var(--text); font-size: 10.5px; padding: 2px 0; word-break: break-all; }
 .hmi-tag-line .muted { font-family: inherit; font-size: 10px; }
 
+/* ===== LT GROUP CARD (one card for 4 LT set points) ===== */
+.lt-group-card .lt-hmi-block {
+  background: #fafaf6; border: 1px solid var(--line); border-radius: 6px;
+  padding: 8px 10px; display: flex; flex-direction: column; gap: 3px;
+}
+.lt-group-card .lt-hmi-label {
+  font-size: 9px; letter-spacing: 1px; color: var(--muted);
+  font-weight: 700; text-transform: uppercase; margin-bottom: 2px;
+}
+.lt-group-card .lt-hmi-line {
+  font-family: ui-monospace, monospace; font-size: 10.5px;
+  color: var(--text); word-break: break-all; line-height: 1.4;
+}
+.lt-group-card .lt-hmi-line .muted { font-family: inherit; color: var(--muted); margin-left: 4px; }
+
+.lt-readout {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  background: #fafaf6; border: 1px solid var(--line); border-radius: 6px;
+  padding: 10px;
+}
+.lt-tank-block { display: flex; flex-direction: column; gap: 4px; }
+.lt-tank-title {
+  font-size: 9.5px; letter-spacing: 1px; color: var(--muted);
+  font-weight: 700; text-transform: uppercase; margin-bottom: 3px;
+}
+.lt-row { display: flex; justify-content: space-between; align-items: center; }
+.lt-row-lbl { font-size: 10.5px; color: var(--muted); font-weight: 600; }
+.lt-row-val { font-family: ui-monospace, monospace; font-size: 12.5px; font-weight: 700; color: var(--text); }
+
+/* LT group editor expansion */
+.lt-edit-section { margin-bottom: 10px; }
+.lt-edit-section:last-of-type { margin-bottom: 6px; }
+.lt-edit-title {
+  font-size: 10.5px; letter-spacing: .8px; color: var(--text);
+  font-weight: 700; text-transform: uppercase; margin-bottom: 6px;
+}
+.lt-edit-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.lt-edit-row .form-input { width: 100%; }
+.lt-edit-row .form-input input { width: 100%; min-width: 0; }
+
 .req { font-size: 9px; padding: 1px 5px; border-radius: 3px; background: #fdeaea; color: #aa1c1c; font-weight: 700; margin-left: 4px; vertical-align: middle; }
 
 /* Config-mode banner inside drawer */
