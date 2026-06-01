@@ -124,20 +124,61 @@
       <div class="cfg-page-head-row">
         <div>
           <h2>Set Point Configuration</h2>
-          <p class="muted">Simple list of every set point in the system. Configure type, name, description and allowed range. Independent of the Studio layout builder.</p>
+          <p class="muted">Step 1 — create a unit process · Step 2 — associate equipment · Step 3 — add set points to it. Independent of the Studio layout builder.</p>
         </div>
-        <button class="dp-btn primary" id="cfgAddBtn">+ Add set point</button>
+        <button class="dp-btn primary" id="cfgAddUpBtn">+ Create unit process</button>
       </div>
       <div class="cfg-toolbar2">
-        <input type="search" id="cfgSearch2" placeholder="Search by name, type or HMI tag…" />
-        <select id="cfgFilterType">
-          <option value="">All types</option>
-        </select>
-        <span class="cfg-count" id="cfgCount2">0 configured</span>
+        <input type="search" id="cfgSearch2" placeholder="Search by unit process, set point name or HMI tag…" />
+        <span class="cfg-count" id="cfgCount2">0 unit processes · 0 set points</span>
       </div>
-      <div class="cfg-table2" id="cfgTable2"></div>
+      <div class="cfg-up-stack" id="cfgUpStack"></div>
     </div>
   </section>
+
+  <!-- Create/Edit Unit Process modal -->
+  <div id="cfgUpModal" class="modal hidden">
+    <div class="modal-card sp-modal">
+      <div class="sp-modal-head">
+        <h2 id="cfgUpModalTitle">Create unit process</h2>
+        <button class="sp-modal-x" id="cfgUpModalClose">✕</button>
+      </div>
+      <div class="sp-modal-body">
+        <div class="cfg2-field">
+          <label>Unit Process Name</label>
+          <input type="text" id="cfgUpName" placeholder="e.g. SBR 1 Cycle, PSF 1 Cycle, Aeration" />
+        </div>
+        <div class="cfg2-field">
+          <label>Description</label>
+          <textarea id="cfgUpDesc" rows="2" placeholder="What does this unit process do?"></textarea>
+        </div>
+        <div class="form-error hidden" id="cfgUpErr"></div>
+      </div>
+      <div class="sp-modal-foot">
+        <button class="dp-btn ghost" id="cfgUpCancel">Cancel</button>
+        <button class="dp-btn primary" id="cfgUpSave">Save unit process</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Equipment picker modal (shared) -->
+  <div id="cfgEqModal" class="modal hidden">
+    <div class="modal-card sp-modal">
+      <div class="sp-modal-head">
+        <h2>Associate equipment</h2>
+        <button class="sp-modal-x" id="cfgEqClose">✕</button>
+      </div>
+      <div class="sp-modal-body">
+        <p class="muted" id="cfgEqSubtitle">Select all equipment that participates in this unit process.</p>
+        <input type="search" id="cfgEqSearch" placeholder="Filter equipment…" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:5px;margin-bottom:10px"/>
+        <div class="ms-menu-list" id="cfgEqList" style="max-height:380px;overflow:auto"></div>
+      </div>
+      <div class="sp-modal-foot">
+        <button class="dp-btn ghost" id="cfgEqCancel">Cancel</button>
+        <button class="dp-btn primary" id="cfgEqSave">Save</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Simple Add/Edit modal (dynamic by type) -->
   <div id="cfgModal" class="modal hidden">

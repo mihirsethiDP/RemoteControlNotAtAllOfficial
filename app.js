@@ -723,7 +723,7 @@ function switchPage(p) {
     installPaletteDrag();
   } else if (p === "cfg") {
     $("#view-cfg").classList.remove("hidden");
-    renderCfgTable();
+    renderCfgUps();
   } else {
     $("#view-layout").classList.remove("hidden");
     requestAnimationFrame(renderScada);
@@ -749,67 +749,180 @@ function cfgUnitFor(type) {
   return CFG_TYPES.find(t => t.type === type)?.unit || "";
 }
 
-function renderCfgTable() {
-  const search = ($("#cfgSearch2")?.value || "").toLowerCase();
-  const tFilter = $("#cfgFilterType")?.value || "";
-  const list = window.SETPOINTS || [];
+// Track which UP cards are expanded across re-renders
+const cfgExpandedUps = new Set();
+let cfgFirstRender = true;
 
-  // Populate type filter once
-  const filt = $("#cfgFilterType");
-  if (filt && filt.options.length <= 1) {
-    for (const t of CFG_TYPES) {
-      const opt = document.createElement("option");
-      opt.value = t.type; opt.textContent = t.type;
-      filt.appendChild(opt);
+function renderCfgUps() {
+  const search = ($("#cfgSearch2")?.value || "").toLowerCase();
+  const ups = window.UNIT_PROCESSES || [];
+  const allSps = window.SETPOINTS || [];
+
+  const totalSps = (() => {
+    const seen = new Set();
+    let n = 0;
+    for (const sp of allSps) {
+      if (sp.type === "LT" && sp.groupId) {
+        if (seen.has(sp.groupId)) continue;
+        seen.add(sp.groupId); n++;
+      } else n++;
     }
+    return n;
+  })();
+  const countEl = $("#cfgCount2");
+  if (countEl) countEl.textContent = `${ups.length} unit process${ups.length===1?"":"es"} · ${totalSps} set point${totalSps===1?"":"s"}`;
+
+  const host = $("#cfgUpStack");
+  if (!host) return;
+  host.innerHTML = "";
+
+  // Filter UPs by search
+  const filtered = ups.filter(up => {
+    if (!search) return true;
+    if (up.name?.toLowerCase().includes(search)) return true;
+    if (up.description?.toLowerCase().includes(search)) return true;
+    const upSps = allSps.filter(s => up.setpointIds?.includes(s.id));
+    return upSps.some(sp => (sp.name+" "+(sp.hmiTag||"")+" "+(sp.groupName||"")).toLowerCase().includes(search));
+  });
+
+  if (cfgFirstRender) {
+    if (ups[0]) cfgExpandedUps.add(ups[0].id);
+    cfgFirstRender = false;
   }
 
-  // Collapse Transfer Pump sub-setpoints (with shared groupId) into one row
+  if (!ups.length) {
+    const empty = document.createElement("div");
+    empty.className = "cfg-empty";
+    empty.innerHTML = `
+      <div class="cfg-empty-title">No unit processes yet</div>
+      <div class="cfg-empty-sub">Start by creating a unit process — e.g. <i>SBR 1 Cycle</i>, <i>Aeration</i>, or <i>PSF 1 Cycle</i>. Then associate the equipment that participates in it and add the set points that drive it.</div>
+      <button class="dp-btn primary" id="cfgEmptyCreate">+ Create your first unit process</button>
+    `;
+    host.appendChild(empty);
+    document.getElementById("cfgEmptyCreate")?.addEventListener("click", () => openCfgUpForm(null));
+    return;
+  }
+  if (!filtered.length) {
+    const empty = document.createElement("div");
+    empty.className = "cfg-empty";
+    empty.innerHTML = `<div class="cfg-empty-sub">No unit processes match "${search}".</div>`;
+    host.appendChild(empty);
+    return;
+  }
+
+  for (const up of filtered) host.appendChild(renderCfgUpCard(up));
+}
+
+function renderCfgUpCard(up) {
+  const allSps = window.SETPOINTS || [];
+  const upSps = allSps.filter(s => up.setpointIds?.includes(s.id));
+
+  // Collapse LT groups
   const seen = new Set();
   const rows = [];
-  for (const sp of list) {
+  for (const sp of upSps) {
     if (sp.type === "LT" && sp.groupId) {
       if (seen.has(sp.groupId)) continue;
       seen.add(sp.groupId);
-      const members = list.filter(s => s.groupId === sp.groupId);
+      const members = upSps.filter(s => s.groupId === sp.groupId);
       rows.push({ kind: "tp", group: { id: sp.groupId, name: sp.groupName, members } });
     } else {
       rows.push({ kind: "single", sp });
     }
   }
 
-  const filtered = rows.filter(r => {
-    const sp = r.kind === "tp" ? r.group : r.sp;
-    const type = r.kind === "tp" ? "Transfer Pump" : sp.type;
-    if (tFilter && type !== tFilter) return false;
-    if (search) {
-      const txt = r.kind === "tp"
-        ? (r.group.name + " " + r.group.members.map(m => m.hmiTag).join(" "))
-        : (sp.name + " " + (sp.hmiTag||"") + " " + sp.type + " " + (sp.description||""));
-      if (!txt.toLowerCase().includes(search)) return false;
-    }
-    return true;
-  });
+  const eqIds = up.equipmentIds || [];
+  const eqCount = eqIds.length;
+  const spCount = rows.length;
+  const expanded = cfgExpandedUps.has(up.id);
 
-  $("#cfgCount2").textContent = `${filtered.length} configured`;
+  const card = document.createElement("div");
+  card.className = "cfg-up-card" + (expanded ? " expanded" : "");
+  card.dataset.upId = up.id;
 
-  const tbl = $("#cfgTable2");
-  tbl.innerHTML = `
-    <div class="cfg-row2 head">
-      <div>Type</div><div>Name &amp; description</div><div>HMI tag</div><div>Range</div><div>Unit</div><div></div>
+  card.innerHTML = `
+    <div class="cfg-up-head">
+      <div class="cfg-up-head-main">
+        <div class="cfg-up-name">${escapeHtml(up.name||"Unnamed unit process")}</div>
+        <div class="cfg-up-desc">${escapeHtml(up.description||"No description")}</div>
+        <div class="cfg-up-counts">
+          <span><b>${eqCount}</b> equipment</span>
+          <span class="dot">·</span>
+          <span><b>${spCount}</b> set point${spCount===1?"":"s"}</span>
+        </div>
+      </div>
+      <div class="cfg-up-actions">
+        <button class="dp-btn ghost sm" data-act="edit-up">Edit</button>
+        <button class="dp-btn ghost sm danger" data-act="del-up">Delete</button>
+        <button class="cfg-up-chev" data-act="toggle" aria-label="Expand">${expanded?"▾":"▸"}</button>
+      </div>
+    </div>
+    <div class="cfg-up-body">
+      <div class="cfg-section">
+        <div class="cfg-section-head">
+          <div class="cfg-section-title">Step 2 · Equipment associated with this unit process</div>
+          <button class="dp-btn ghost sm" data-act="add-eq">${eqCount?"Edit equipment":"+ Associate equipment"}</button>
+        </div>
+        <div class="cfg-eq-chips">${
+          eqCount
+            ? eqIds.map(id => {
+                const name = DEVICES[id]?.name || id;
+                return `<span class="cfg-eq-chip">${escapeHtml(name)}<button class="chip-x" data-eq-remove="${id}" title="Remove">×</button></span>`;
+              }).join("")
+            : `<div class="cfg-eq-empty">No equipment associated yet. Click <b>Associate equipment</b> to add pumps, blowers, valves, etc.</div>`
+        }</div>
+      </div>
+      <div class="cfg-section">
+        <div class="cfg-section-head">
+          <div class="cfg-section-title">Step 3 · Set points</div>
+          <button class="dp-btn primary sm" data-act="add-sp">+ Add set point</button>
+        </div>
+        <div class="cfg-sp-list">${
+          rows.length
+            ? rows.map(r => renderCfgSpRow(r)).join("")
+            : `<div class="cfg-sp-empty">No set points yet. Add the thresholds (DO, level, time, flow, pressure, etc.) that drive this unit process.</div>`
+        }</div>
+      </div>
     </div>
   `;
-  if (!filtered.length) {
-    const empty = document.createElement("div");
-    empty.style.cssText = "padding:40px 20px;text-align:center;color:var(--muted);font-size:13px";
-    empty.textContent = "No set points configured. Click + Add set point to create one.";
-    tbl.appendChild(empty);
-    return;
-  }
-  for (const r of filtered) tbl.appendChild(renderCfgRow(r));
+
+  // Wire actions
+  card.querySelector('[data-act="toggle"]').addEventListener("click", () => {
+    if (cfgExpandedUps.has(up.id)) cfgExpandedUps.delete(up.id); else cfgExpandedUps.add(up.id);
+    renderCfgUps();
+  });
+  card.querySelector('[data-act="edit-up"]').addEventListener("click", e => { e.stopPropagation(); openCfgUpForm(up.id); });
+  card.querySelector('[data-act="del-up"]').addEventListener("click", e => { e.stopPropagation(); deleteCfgUp(up.id); });
+  card.querySelector('[data-act="add-eq"]').addEventListener("click", e => { e.stopPropagation(); openCfgEqPicker(up.id); });
+  card.querySelector('[data-act="add-sp"]').addEventListener("click", e => { e.stopPropagation(); openCfgModal({ kind: "new", upId: up.id }); });
+
+  card.querySelectorAll('[data-eq-remove]').forEach(btn => {
+    btn.addEventListener("click", e => {
+      e.stopPropagation();
+      const id = btn.dataset.eqRemove;
+      up.equipmentIds = (up.equipmentIds||[]).filter(x => x !== id);
+      renderCfgUps();
+    });
+  });
+
+  card.querySelectorAll('.cfg-sp-row').forEach(row => {
+    row.addEventListener("click", () => {
+      if (row.dataset.groupId) openCfgModal({ kind: "tp", groupId: row.dataset.groupId });
+      else if (row.dataset.spId) openCfgModal({ kind: "single", spId: row.dataset.spId });
+    });
+  });
+
+  // Make the head clickable (except when clicking buttons) to toggle
+  card.querySelector('.cfg-up-head').addEventListener("click", e => {
+    if (e.target.closest("button")) return;
+    if (cfgExpandedUps.has(up.id)) cfgExpandedUps.delete(up.id); else cfgExpandedUps.add(up.id);
+    renderCfgUps();
+  });
+
+  return card;
 }
 
-function renderCfgRow(r) {
+function renderCfgSpRow(r) {
   if (r.kind === "tp") {
     const g = r.group;
     const m = g.members;
@@ -817,49 +930,140 @@ function renderCfgRow(r) {
     const srcMax = m.find(x => x.subRole === "SOURCEMAX");
     const dstMin = m.find(x => x.subRole === "DESTMIN");
     const dstMax = m.find(x => x.subRole === "DESTMAX");
-    const row = document.createElement("div");
-    row.className = "cfg-row2";
-    row.dataset.groupId = g.id;
-    row.innerHTML = `
-      <div><span class="c-type">Transfer Pump</span></div>
-      <div>
-        <div class="c-name">${g.name}</div>
-        <div class="c-desc">${m[0]?.description || "Source + destination tank levels — 4 HMI tags"}</div>
-      </div>
-      <div class="c-hmi">${m.map(x => `<code>${x.hmiTag}</code>`).join(" ")}</div>
-      <div class="c-range">
-        Src: ${srcMin?.current ?? "—"} – ${srcMax?.current ?? "—"}<br>
-        Dst: ${dstMin?.current ?? "—"} – ${dstMax?.current ?? "—"}
-      </div>
-      <div class="c-range">%</div>
-      <div><button class="ic-btn">✎</button></div>
-      <div class="cfg-tp-sublist">
-        <div class="cfg-tp-cell"><div class="k">SRC MIN · safe</div><div class="v">${srcMin?.min ?? "—"} – ${srcMin?.max ?? "—"} %</div></div>
-        <div class="cfg-tp-cell"><div class="k">SRC MAX · safe</div><div class="v">${srcMax?.min ?? "—"} – ${srcMax?.max ?? "—"} %</div></div>
-        <div class="cfg-tp-cell"><div class="k">DST MIN · safe</div><div class="v">${dstMin?.min ?? "—"} – ${dstMin?.max ?? "—"} %</div></div>
-        <div class="cfg-tp-cell"><div class="k">DST MAX · safe</div><div class="v">${dstMax?.min ?? "—"} – ${dstMax?.max ?? "—"} %</div></div>
-      </div>
-    `;
-    row.addEventListener("click", () => openCfgModal({ kind: "tp", groupId: g.id }));
-    return row;
+    return `
+      <div class="cfg-sp-row tp" data-group-id="${g.id}">
+        <div><span class="sp-type">Transfer Pump</span></div>
+        <div>
+          <div class="sp-name">${escapeHtml(g.name||"")}</div>
+          <div class="sp-desc">Src ${srcMin?.current ?? "—"}–${srcMax?.current ?? "—"} % · Dst ${dstMin?.current ?? "—"}–${dstMax?.current ?? "—"} % · 4 HMI tags</div>
+        </div>
+        <div class="sp-hmi">${m.map(x => `<code>${x.hmiTag}</code>`).join(" ")}</div>
+        <div class="sp-range">4 levels</div>
+        <div class="sp-unit">%</div>
+        <div style="text-align:right;color:var(--muted)">✎</div>
+      </div>`;
   }
   const sp = r.sp;
-  const row = document.createElement("div");
-  row.className = "cfg-row2";
-  row.dataset.id = sp.id;
-  row.innerHTML = `
-    <div><span class="c-type">${sp.type}</span></div>
-    <div>
-      <div class="c-name">${sp.name}</div>
-      <div class="c-desc">${sp.description || "—"}</div>
-    </div>
-    <div class="c-hmi"><code>${sp.hmiTag||"—"}</code></div>
-    <div class="c-range">${sp.min ?? "—"} – ${sp.max ?? "—"}</div>
-    <div class="c-range">${sp.unit||"—"}</div>
-    <div><button class="ic-btn">✎</button></div>
-  `;
-  row.addEventListener("click", () => openCfgModal({ kind: "single", spId: sp.id }));
-  return row;
+  return `
+    <div class="cfg-sp-row" data-sp-id="${sp.id}">
+      <div><span class="sp-type">${sp.type}</span></div>
+      <div>
+        <div class="sp-name">${escapeHtml(sp.name||"")}</div>
+        <div class="sp-desc">${escapeHtml(sp.description||"—")}</div>
+      </div>
+      <div class="sp-hmi"><code>${sp.hmiTag||"—"}</code></div>
+      <div class="sp-range">${sp.min ?? "—"} – ${sp.max ?? "—"}</div>
+      <div class="sp-unit">${sp.unit||"—"}</div>
+      <div style="text-align:right;color:var(--muted)">✎</div>
+    </div>`;
+}
+
+function escapeHtml(s) {
+  return String(s||"").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+// ---- Unit process create/edit modal ----
+let cfgUpEditing = null;
+function openCfgUpForm(upId) {
+  cfgUpEditing = upId;
+  const up = upId ? (window.UNIT_PROCESSES||[]).find(u => u.id === upId) : null;
+  $("#cfgUpModalTitle").textContent = up ? "Edit unit process" : "Create unit process";
+  $("#cfgUpName").value = up?.name || "";
+  $("#cfgUpDesc").value = up?.description || "";
+  $("#cfgUpErr").classList.add("hidden");
+  document.getElementById("cfgUpModal").classList.remove("hidden");
+  setTimeout(() => $("#cfgUpName")?.focus(), 50);
+}
+function closeCfgUpForm() {
+  document.getElementById("cfgUpModal").classList.add("hidden");
+  cfgUpEditing = null;
+}
+function saveCfgUp() {
+  const name = $("#cfgUpName").value.trim();
+  const desc = $("#cfgUpDesc").value.trim();
+  const err = $("#cfgUpErr");
+  err.classList.add("hidden");
+  if (!name) { err.textContent = "Unit process name is required."; err.classList.remove("hidden"); return; }
+  if (cfgUpEditing) {
+    const up = (window.UNIT_PROCESSES||[]).find(u => u.id === cfgUpEditing);
+    if (up) { up.name = name; up.description = desc; toast(`Updated · ${name}`, "ok"); }
+  } else {
+    const id = "up-" + name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + Date.now().toString(36).slice(-4);
+    const newUp = { id, name, description: desc, equipmentIds: [], setpointIds: [], layout: [] };
+    (window.UNIT_PROCESSES||(window.UNIT_PROCESSES=[])).push(newUp);
+    cfgExpandedUps.add(id);
+    toast(`Created · ${name}`, "ok");
+  }
+  closeCfgUpForm();
+  renderCfgUps();
+}
+function deleteCfgUp(upId) {
+  const up = (window.UNIT_PROCESSES||[]).find(u => u.id === upId);
+  if (!up) return;
+  const spCount = (up.setpointIds||[]).length;
+  const msg = spCount
+    ? `Delete unit process "${up.name}"? Its ${spCount} set point${spCount===1?"":"s"} will be unlinked but kept in the registry.`
+    : `Delete unit process "${up.name}"?`;
+  if (!confirm(msg)) return;
+  window.UNIT_PROCESSES = (window.UNIT_PROCESSES||[]).filter(u => u.id !== upId);
+  cfgExpandedUps.delete(upId);
+  toast(`Deleted · ${up.name}`, "ok");
+  renderCfgUps();
+}
+
+// ---- Equipment picker for a specific UP ----
+let cfgEqUpId = null;
+let cfgEqDraftSelection = new Set();
+function openCfgEqPicker(upId) {
+  cfgEqUpId = upId;
+  const up = (window.UNIT_PROCESSES||[]).find(u => u.id === upId);
+  if (!up) return;
+  cfgEqDraftSelection = new Set(up.equipmentIds||[]);
+  $("#cfgEqSubtitle").textContent = `Select all equipment that participates in "${up.name}".`;
+  $("#cfgEqSearch").value = "";
+  renderCfgEqList("");
+  document.getElementById("cfgEqModal").classList.remove("hidden");
+}
+function renderCfgEqList(filter) {
+  const list = document.getElementById("cfgEqList");
+  list.innerHTML = "";
+  const f = (filter||"").toLowerCase();
+  const ids = Object.keys(DEVICES);
+  for (const id of ids) {
+    const dev = DEVICES[id];
+    if (f && !dev.name.toLowerCase().includes(f) && !id.toLowerCase().includes(f)) continue;
+    const checked = cfgEqDraftSelection.has(id);
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "ms-item" + (checked ? " selected" : "");
+    item.dataset.id = id;
+    item.innerHTML = `<span class="ms-check">${checked?'✓':''}</span><span class="ms-name">${escapeHtml(dev.name)}</span>`;
+    item.addEventListener("click", () => {
+      if (cfgEqDraftSelection.has(id)) cfgEqDraftSelection.delete(id); else cfgEqDraftSelection.add(id);
+      item.classList.toggle("selected");
+      item.querySelector(".ms-check").textContent = item.classList.contains("selected") ? "✓" : "";
+    });
+    list.appendChild(item);
+  }
+  if (!list.children.length) {
+    const empty = document.createElement("div");
+    empty.style.cssText = "padding:24px;text-align:center;color:var(--muted);font-size:12px";
+    empty.textContent = "No equipment matches your search.";
+    list.appendChild(empty);
+  }
+}
+function closeCfgEqPicker() {
+  document.getElementById("cfgEqModal").classList.add("hidden");
+  cfgEqUpId = null;
+}
+function saveCfgEqPicker() {
+  const up = (window.UNIT_PROCESSES||[]).find(u => u.id === cfgEqUpId);
+  if (up) {
+    up.equipmentIds = Array.from(cfgEqDraftSelection);
+    toast(`${up.equipmentIds.length} equipment associated · ${up.name}`, "ok");
+  }
+  closeCfgEqPicker();
+  renderCfgUps();
 }
 
 let cfgEditing = null; // { kind:'single', spId } | { kind:'tp', groupId } | null
@@ -897,7 +1101,7 @@ function openCfgModal(target) {
     $("#cfgFType").value = "Level";
     $("#cfgFName").value = "";
     $("#cfgFDesc").value = "";
-    upSel.value = "";
+    upSel.value = (target && target.upId) ? target.upId : "";
     renderCfgSchema("Level", null);
   }
   updateCfgHmi();
@@ -1088,7 +1292,7 @@ function saveCfgModal() {
     }
   }
   closeCfgModal();
-  renderCfgTable();
+  renderCfgUps();
 }
 
 // =====================================================================
@@ -2798,13 +3002,19 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#scWarnCancel")?.addEventListener("click", cancelWarn);
   $("#scWarnOverride")?.addEventListener("click", overrideWarn);
 
-  // Simple Set Point Configuration
-  $("#cfgAddBtn")?.addEventListener("click", () => openCfgModal(null));
+  // Simple Set Point Configuration (UP-first flow)
+  $("#cfgAddUpBtn")?.addEventListener("click", () => openCfgUpForm(null));
+  $("#cfgUpModalClose")?.addEventListener("click", closeCfgUpForm);
+  $("#cfgUpCancel")?.addEventListener("click", closeCfgUpForm);
+  $("#cfgUpSave")?.addEventListener("click", saveCfgUp);
+  $("#cfgEqClose")?.addEventListener("click", closeCfgEqPicker);
+  $("#cfgEqCancel")?.addEventListener("click", closeCfgEqPicker);
+  $("#cfgEqSave")?.addEventListener("click", saveCfgEqPicker);
+  $("#cfgEqSearch")?.addEventListener("input", e => renderCfgEqList(e.target.value));
   $("#cfgModalClose")?.addEventListener("click", closeCfgModal);
   $("#cfgModalCancel")?.addEventListener("click", closeCfgModal);
   $("#cfgModalSave")?.addEventListener("click", saveCfgModal);
-  $("#cfgSearch2")?.addEventListener("input", renderCfgTable);
-  $("#cfgFilterType")?.addEventListener("change", renderCfgTable);
+  $("#cfgSearch2")?.addEventListener("input", renderCfgUps);
   $("#cfgFType")?.addEventListener("change", e => { renderCfgSchema(e.target.value, null); updateCfgHmi(); });
   $("#cfgFUp")?.addEventListener("change", updateCfgHmi);
 

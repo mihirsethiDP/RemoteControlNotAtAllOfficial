@@ -1104,6 +1104,91 @@ body.side-drawer-open { overflow: hidden; }
 .cfg-toolbar2 input { flex: 1; }
 .cfg-toolbar2 select { flex: 0 0 180px; }
 
+/* Unit-process stack on Set Point Configuration page */
+.cfg-up-stack { display: flex; flex-direction: column; gap: 12px; }
+.cfg-up-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  overflow: hidden; transition: border-color .15s, box-shadow .15s;
+}
+.cfg-up-card.expanded { border-color: var(--primary-2); box-shadow: 0 2px 12px rgba(42,108,240,.08); }
+.cfg-up-head {
+  display: grid; grid-template-columns: 1fr auto auto auto;
+  gap: 12px; align-items: center;
+  padding: 14px 18px; cursor: pointer; background: linear-gradient(180deg, #1c3a6e, #0e1f3a); color: #fff;
+}
+.cfg-up-head:hover { filter: brightness(1.08); }
+.cfg-up-name { font-size: 15px; font-weight: 700; }
+.cfg-up-desc { font-size: 11.5px; color: #cfe3ff; margin-top: 2px; }
+.cfg-up-counts { display: flex; gap: 12px; font-size: 11px; color: #cfe3ff; }
+.cfg-up-counts b { color: #fff; font-family: ui-monospace, monospace; }
+.cfg-up-actions { display: flex; gap: 4px; }
+.cfg-up-actions button {
+  width: 30px; height: 30px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.1); color: #fff;
+  border-radius: 5px; cursor: pointer; transition: .12s;
+}
+.cfg-up-actions button:hover { background: rgba(255,255,255,.2); }
+.cfg-up-chev { color: #fff; transition: transform .2s; }
+.cfg-up-card.expanded .cfg-up-chev { transform: rotate(180deg); }
+
+.cfg-up-body { max-height: 0; overflow: hidden; transition: max-height .25s ease, padding .25s ease; padding: 0 18px; }
+.cfg-up-card.expanded .cfg-up-body { max-height: 4000px; padding: 16px 18px; }
+
+.cfg-section { margin-bottom: 16px; }
+.cfg-section-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 8px;
+}
+.cfg-section-title {
+  font-size: 11px; letter-spacing: 1px; color: var(--muted);
+  font-weight: 700; text-transform: uppercase;
+}
+.cfg-section-add {
+  padding: 5px 12px; border: 1px dashed var(--primary-2); background: #fff;
+  color: var(--primary-2); border-radius: 5px; font-size: 11.5px; font-weight: 700; cursor: pointer;
+}
+.cfg-section-add:hover { background: var(--primary-2); color: #fff; }
+
+.cfg-eq-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; }
+.cfg-eq-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; background: #eef2f7; color: var(--primary); border-radius: 999px;
+  font-size: 11.5px; font-weight: 600;
+}
+.cfg-eq-chip .chip-x {
+  background: transparent; border: 0; color: var(--primary); cursor: pointer; font-size: 12px;
+}
+.cfg-eq-chip .chip-x:hover { color: var(--bad); }
+.cfg-eq-empty { padding: 12px; background: var(--surface-2); border: 1px dashed var(--line); border-radius: 6px; font-size: 12px; color: var(--muted); text-align: center; }
+
+.cfg-sp-list { display: flex; flex-direction: column; gap: 6px; }
+.cfg-sp-row {
+  display: grid; grid-template-columns: 90px 2fr 1.4fr 1fr 80px 50px;
+  gap: 12px; align-items: center;
+  padding: 10px 12px; background: #fff;
+  border: 1px solid var(--line); border-radius: 6px;
+  cursor: pointer; transition: border-color .12s;
+}
+.cfg-sp-row:hover { border-color: var(--primary-2); }
+.cfg-sp-row .sp-type {
+  display: inline-block; font-size: 10px; padding: 3px 8px;
+  background: #eef2f7; color: var(--primary); border: 1px solid #dde6f3;
+  border-radius: 4px; font-weight: 700;
+}
+.cfg-sp-row .sp-name { font-size: 13px; font-weight: 700; color: var(--text); }
+.cfg-sp-row .sp-desc { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.cfg-sp-row .sp-hmi code {
+  font-family: ui-monospace, monospace; font-size: 10.5px;
+  background: #fafaf6; border: 1px solid var(--line); padding: 1px 6px; border-radius: 3px;
+  color: var(--text-2); word-break: break-all; display: inline-block;
+}
+.cfg-sp-row .sp-range { font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--text); }
+.cfg-sp-row .sp-unit { font-size: 11px; color: var(--muted); }
+.cfg-sp-empty {
+  padding: 14px; background: var(--surface-2);
+  border: 1px dashed var(--line); border-radius: 6px;
+  font-size: 12px; color: var(--muted); text-align: center;
+}
+
 .cfg-table2 {
   background: var(--surface); border: 1px solid var(--line);
   border-radius: 8px; overflow: hidden;
