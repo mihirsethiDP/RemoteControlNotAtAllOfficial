@@ -910,9 +910,13 @@ function renderStudioCanvas() {
       actions.children[1].addEventListener("click", e => { e.stopPropagation(); moveWidget(up, w.id, +1); });
       actions.children[2].addEventListener("click", e => { e.stopPropagation(); deleteWidget(up, w.id); });
       cell.addEventListener("click", e => { e.stopPropagation(); studioSelectedWidgetId = w.id; renderStudio(); });
-      cell.addEventListener("dragstart", e => { e.dataTransfer.effectAllowed="move"; e.dataTransfer.setData("text/widget", w.id); cell.classList.add("dragging"); });
+      cell.addEventListener("dragstart", e => { e.dataTransfer.effectAllowed="copyMove"; e.dataTransfer.setData("text/widget", w.id); cell.classList.add("dragging"); });
       cell.addEventListener("dragend", () => cell.classList.remove("dragging"));
-      cell.addEventListener("dragover", e => { e.preventDefault(); e.dataTransfer.dropEffect="move"; });
+      cell.addEventListener("dragover", e => {
+        e.preventDefault();
+        const t = e.dataTransfer.types;
+        e.dataTransfer.dropEffect = t.includes("text/widget-type") ? "copy" : "move";
+      });
       cell.addEventListener("drop", e => {
         e.preventDefault(); e.stopPropagation();
         const movedId = e.dataTransfer.getData("text/widget");
@@ -923,7 +927,12 @@ function renderStudioCanvas() {
       canvas.appendChild(cell);
     }
   }
-  canvas.addEventListener("dragover", e => { e.preventDefault(); canvas.classList.add("drop-target"); });
+  canvas.addEventListener("dragover", e => {
+    e.preventDefault();
+    const t = e.dataTransfer.types;
+    e.dataTransfer.dropEffect = t.includes("text/widget-type") ? "copy" : "move";
+    canvas.classList.add("drop-target");
+  });
   canvas.addEventListener("dragleave", () => canvas.classList.remove("drop-target"));
   canvas.addEventListener("drop", e => {
     e.preventDefault(); canvas.classList.remove("drop-target");
@@ -1010,7 +1019,7 @@ function renderStudioInspector() {
 function installPaletteDrag() {
   document.querySelectorAll(".palette-widget").forEach(el => {
     el.addEventListener("dragstart", e => {
-      e.dataTransfer.effectAllowed = "copy";
+      e.dataTransfer.effectAllowed = "copyMove";
       e.dataTransfer.setData("text/widget-type", el.dataset.add);
     });
   });
