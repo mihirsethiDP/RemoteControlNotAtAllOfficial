@@ -963,14 +963,33 @@ function deleteWidget(up, id) {
   renderStudio();
 }
 function insertNewWidget(up, type, beforeId) {
-  const newW = { id: "w-" + Date.now().toString(36), type, col: (type==="header"||type==="divider"||type==="note") ? 12 : 4 };
+  const newW = { id: "w-" + Date.now().toString(36), type, col: (type==="header"||type==="divider"||type==="note") ? 12 : 6 };
   if (type === "header") newW.text = "New section";
   if (type === "note")   newW.text = "Add your note here.";
   if (type === "setpoint") {
-    const sp = (window.SETPOINTS||[]).find(s => up.setpointIds.includes(s.id) && !up.layout?.some(w => w.spId === s.id));
-    if (sp) newW.spId = sp.id;
+    // Auto-create a blank setpoint and assign — editable immediately in the inspector
+    const spId = "sp-new-" + Date.now().toString(36);
+    const newSp = {
+      id: spId, type: "Custom",
+      name: "New set point",
+      hmiTag: window.generateHmiTag(up.name, "Custom", (up.setpointIds?.length||0)+1),
+      unit: "", current: 0, min: 0, max: 100,
+      active: true, equipment: up.name, targets: [...(up.equipmentIds||[])],
+      source: "Created · " + new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"}),
+      history: [],
+    };
+    (window.SETPOINTS||(window.SETPOINTS=[])).push(newSp);
+    up.setpointIds = up.setpointIds || []; up.setpointIds.push(spId);
+    newW.spId = spId;
   }
-  if (type === "sensor") newW.sensorId = (window.SENSORS||[])[0]?.id;
+  if (type === "sensor") {
+    // Auto-create a blank sensor
+    const senId = "sen-new-" + Date.now().toString(36);
+    const tagBase = (up.name||"UP").toUpperCase().replace(/[^A-Z0-9]+/g,"_");
+    const newSen = { id: senId, name: "New sensor", tag: `${tagBase}.LIVE_${Date.now().toString(36).slice(-3).toUpperCase()}`, unit: "", value: 0 };
+    (window.SENSORS||(window.SENSORS=[])).push(newSen);
+    newW.sensorId = senId;
+  }
   up.layout = up.layout || [];
   if (beforeId) {
     const idx = up.layout.findIndex(w => w.id === beforeId);
@@ -980,11 +999,27 @@ function insertNewWidget(up, type, beforeId) {
   renderStudio();
 }
 
+const SP_TYPE_PRESETS = [
+  { type: "DO",                unit: "mg/L" },
+  { type: "PT",                unit: "bar"  },
+  { type: "LT",                unit: "%"    },
+  { type: "Flow",              unit: "m³/hr"},
+  { type: "Switchover Time",   unit: "min"  },
+  { type: "Time",              unit: "min"  },
+  { type: "Level",             unit: "%"    },
+  { type: "Pressure",          unit: "bar"  },
+  { type: "Conductivity",      unit: "μS/cm"},
+  { type: "ORP",               unit: "mV"   },
+  { type: "FRC",               unit: "ppm"  },
+  { type: "pH",                unit: "pH"   },
+  { type: "Custom",            unit: ""     },
+];
+
 function renderStudioInspector() {
   const host = $("#studioInspector");
   const up = studioSelectedUp();
   const w = studioSelectedWidget();
-  if (!w) { host.innerHTML = `<div class="insp-empty">Pick a widget to edit its properties.</div>`; return; }
+  if (!w) { host.innerHTML = `<div class="insp-empty">Pick a widget to edit its properties — or drag a tile from the palette to add one.</div>`; return; }
   let body = `
     <div class="insp-section"><span class="insp-label">Widget · ${w.type}</span></div>
     <div class="insp-section">
@@ -993,28 +1028,229 @@ function renderStudioInspector() {
         ${[2,3,4,6,8,12].map(c => `<button class="insp-col-btn ${w.col===c?"active":""}" data-col="${c}">${c}</button>`).join("")}
       </div>
     </div>`;
+
   if (w.type === "setpoint") {
-    const sps = (window.SETPOINTS||[]).filter(s => up.setpointIds.includes(s.id));
-    body += `<div class="insp-section"><span class="insp-label">Set point</span>
-      <select data-f="spId">${sps.map(s => `<option value="${s.id}" ${w.spId===s.id?"selected":""}>${s.name}</option>`).join("")}</select></div>`;
-  }
-  if (w.type === "sensor") {
-    body += `<div class="insp-section"><span class="insp-label">Sensor tag</span>
-      <select data-f="sensorId">${(window.SENSORS||[]).map(s => `<option value="${s.id}" ${w.sensorId===s.id?"selected":""}>${s.name} · ${s.tag}</option>`).join("")}</select></div>`;
-  }
-  if (w.type === "header" || w.type === "note") {
+    body += renderInspectorSetpoint(w, up);
+  } else if (w.type === "sensor") {
+    body += renderInspectorSensor(w, up);
+  } else if (w.type === "header" || w.type === "note") {
     body += `<div class="insp-section"><span class="insp-label">Text</span>
       <textarea data-f="text" rows="${w.type==="note"?3:2}">${w.text||""}</textarea></div>`;
   }
+
   body += `<div class="insp-section" style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px">
     <button class="dp-btn ghost sm danger" data-w-delete>Delete widget</button>
   </div>`;
   host.innerHTML = body;
+
+  // Common wiring
   host.querySelectorAll(".insp-col-btn").forEach(b => b.addEventListener("click", () => { w.col = parseInt(b.dataset.col, 10); renderStudio(); }));
-  host.querySelectorAll("select[data-f]").forEach(el => el.addEventListener("change", e => { w[el.dataset.f] = el.value; renderStudio(); }));
-  host.querySelectorAll("textarea[data-f]").forEach(el => el.addEventListener("input", e => { w[el.dataset.f] = el.value; }));
+  host.querySelectorAll("textarea[data-f]").forEach(el => el.addEventListener("input", () => { w[el.dataset.f] = el.value; }));
   host.querySelector("[data-w-delete]")?.addEventListener("click", () => deleteWidget(up, w.id));
+
+  // Setpoint-specific wiring
+  if (w.type === "setpoint") wireInspectorSetpoint(host, w, up);
+  if (w.type === "sensor")   wireInspectorSensor(host, w, up);
 }
+
+// ============ SET POINT EDITOR (inside Studio inspector) ============
+function renderInspectorSetpoint(w, up) {
+  const sp = (window.SETPOINTS||[]).find(s => s.id === w.spId);
+  const allSps = (window.SETPOINTS||[]);
+  let html = `
+    <div class="insp-section">
+      <span class="insp-label">Linked set point</span>
+      <select data-f="spId">
+        <option value="">— Pick existing —</option>
+        ${allSps.map(s => `<option value="${s.id}" ${w.spId===s.id?"selected":""}>${s.name}</option>`).join("")}
+      </select>
+    </div>
+    <div class="insp-section">
+      <button class="dp-btn ghost sm" data-action="new-sp" style="width:100%">+ Create blank set point</button>
+    </div>
+  `;
+  if (sp) {
+    html += `
+      <div class="insp-edit-block">
+        <div class="insp-edit-head"><span class="insp-label">Set point details</span></div>
+        <div class="insp-row"><label>Name</label><input type="text" data-sp="name" value="${escAttr(sp.name)}"/></div>
+        <div class="insp-row"><label>Type</label>
+          <select data-sp="type">
+            ${SP_TYPE_PRESETS.map(p => `<option value="${p.type}" ${sp.type===p.type?"selected":""}>${p.type}</option>`).join("")}
+          </select>
+        </div>
+        <div class="insp-row"><label>Unit</label><input type="text" data-sp="unit" value="${escAttr(sp.unit||"")}" placeholder="e.g. mg/L, m³/hr, bar"/></div>
+        <div class="insp-grid-2">
+          <div class="insp-row"><label>Min</label><input type="number" step="any" data-sp="min" value="${sp.min ?? ""}"/></div>
+          <div class="insp-row"><label>Max</label><input type="number" step="any" data-sp="max" value="${sp.max ?? ""}"/></div>
+        </div>
+        <div class="insp-row"><label>Current value</label><input type="number" step="any" data-sp="current" value="${sp.current ?? ""}"/></div>
+        <div class="insp-row"><label>HMI tag <small>auto-generated</small></label>
+          <div class="insp-hmi-chip"><code>${sp.hmiTag||"—"}</code></div>
+        </div>
+        <div class="insp-err hidden" data-sp-err></div>
+        <div class="insp-section" style="display:flex;gap:6px;margin-top:8px">
+          <button class="dp-btn primary sm" data-action="save-sp" style="flex:1">Save set point</button>
+          <button class="dp-btn ghost sm danger" data-action="delete-sp" title="Delete this set point from the system">🗑</button>
+        </div>
+      </div>
+    `;
+  }
+  return html;
+}
+
+function wireInspectorSetpoint(host, w, up) {
+  host.querySelector('select[data-f="spId"]')?.addEventListener("change", e => {
+    w.spId = e.target.value;
+    renderStudio();
+  });
+  host.querySelector('[data-action="new-sp"]')?.addEventListener("click", () => {
+    // Create blank setpoint and assign
+    const spId = "sp-new-" + Date.now().toString(36);
+    const newSp = {
+      id: spId, type: "Custom",
+      name: "New set point",
+      hmiTag: window.generateHmiTag(up.name, "Custom", (up.setpointIds?.length||0)+1),
+      unit: "", current: 0, min: 0, max: 100,
+      active: true, equipment: up.name, targets: [...(up.equipmentIds||[])],
+      source: "Created · " + new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"}),
+      history: [],
+    };
+    (window.SETPOINTS||(window.SETPOINTS=[])).push(newSp);
+    up.setpointIds = up.setpointIds || []; if (!up.setpointIds.includes(spId)) up.setpointIds.push(spId);
+    w.spId = spId;
+    renderStudio();
+  });
+  host.querySelector('[data-action="save-sp"]')?.addEventListener("click", () => saveSpFromInspector(host, w, up));
+  host.querySelector('[data-action="delete-sp"]')?.addEventListener("click", () => deleteSpFromInspector(w, up));
+}
+
+function saveSpFromInspector(host, w, up) {
+  const sp = (window.SETPOINTS||[]).find(s => s.id === w.spId); if (!sp) return;
+  const get = sel => host.querySelector(`[data-sp="${sel}"]`)?.value;
+  const name = (get("name")||"").trim();
+  const type = get("type") || "Custom";
+  const unit = (get("unit")||"").trim();
+  const min  = parseFloat(get("min"));
+  const max  = parseFloat(get("max"));
+  const cur  = parseFloat(get("current"));
+  const err  = host.querySelector("[data-sp-err]");
+  const problems = [];
+  if (!name) problems.push("Name is required");
+  if (isNaN(min) || isNaN(max)) problems.push("Min and Max must be numbers");
+  else if (max <= min) problems.push("Max must be greater than Min");
+  if (isNaN(cur)) problems.push("Current must be a number");
+  else if (!isNaN(min) && !isNaN(max) && (cur < min || cur > max)) problems.push("Current must be within Min–Max");
+  if (problems.length) {
+    err.textContent = problems.join(" · ");
+    err.classList.remove("hidden");
+    return;
+  }
+  err.classList.add("hidden");
+  // History
+  const changes = {};
+  if (sp.name !== name) changes.name = { from: sp.name, to: name };
+  if (sp.type !== type) changes.type = { from: sp.type, to: type };
+  if (sp.unit !== unit) changes.unit = { from: sp.unit, to: unit };
+  if (sp.min  !== min)  changes.min  = { from: sp.min,  to: min  };
+  if (sp.max  !== max)  changes.max  = { from: sp.max,  to: max  };
+  if (sp.current !== cur) changes.current = { from: sp.current, to: cur };
+  if (Object.keys(changes).length) {
+    sp.history = sp.history || [];
+    sp.history.push({ ts: new Date().toISOString(), kind: "config", changes, who: "you" });
+  }
+  Object.assign(sp, { name, type, unit, min, max, current: cur });
+  // Refresh HMI tag if type changed
+  sp.hmiTag = window.generateHmiTag(up.name, type, (up.setpointIds.indexOf(sp.id) >= 0 ? up.setpointIds.indexOf(sp.id) + 1 : 1));
+  toast(`Saved · ${name}`, "ok");
+  renderStudio();
+}
+
+function deleteSpFromInspector(w, up) {
+  const sp = (window.SETPOINTS||[]).find(s => s.id === w.spId); if (!sp) return;
+  if (!confirm(`Delete set point "${sp.name}" from the system? This removes it from every dashboard that uses it.`)) return;
+  // Remove from all UP setpointIds + layouts
+  for (const u of (window.UNIT_PROCESSES||[])) {
+    u.setpointIds = (u.setpointIds||[]).filter(id => id !== sp.id);
+    u.layout = (u.layout||[]).filter(wgt => wgt.spId !== sp.id);
+  }
+  // Remove from global list
+  window.SETPOINTS = (window.SETPOINTS||[]).filter(s => s.id !== sp.id);
+  studioSelectedWidgetId = null;
+  toast(`Deleted set point · ${sp.name}`, "ok");
+  renderStudio();
+}
+
+// ============ SENSOR EDITOR (inside Studio inspector) ============
+function renderInspectorSensor(w, up) {
+  const sen = (window.SENSORS||[]).find(s => s.id === w.sensorId);
+  const all = (window.SENSORS||[]);
+  let html = `
+    <div class="insp-section">
+      <span class="insp-label">Linked sensor</span>
+      <select data-f="sensorId">
+        <option value="">— Pick existing —</option>
+        ${all.map(s => `<option value="${s.id}" ${w.sensorId===s.id?"selected":""}>${s.name} · ${s.tag}</option>`).join("")}
+      </select>
+    </div>
+    <div class="insp-section">
+      <button class="dp-btn ghost sm" data-action="new-sensor" style="width:100%">+ Create blank sensor</button>
+    </div>
+  `;
+  if (sen) {
+    html += `
+      <div class="insp-edit-block">
+        <div class="insp-edit-head"><span class="insp-label">Sensor details</span></div>
+        <div class="insp-row"><label>Name</label><input type="text" data-sen="name" value="${escAttr(sen.name)}"/></div>
+        <div class="insp-row"><label>HMI tag</label><input type="text" data-sen="tag" value="${escAttr(sen.tag)}" placeholder="e.g. AIT_201.LIVE"/></div>
+        <div class="insp-row"><label>Unit</label><input type="text" data-sen="unit" value="${escAttr(sen.unit||"")}" placeholder="e.g. mg/L"/></div>
+        <div class="insp-row"><label>Mock value</label><input type="number" step="any" data-sen="value" value="${sen.value ?? ""}"/></div>
+        <div class="insp-section" style="display:flex;gap:6px;margin-top:8px">
+          <button class="dp-btn primary sm" data-action="save-sen" style="flex:1">Save sensor</button>
+          <button class="dp-btn ghost sm danger" data-action="delete-sen" title="Delete this sensor">🗑</button>
+        </div>
+      </div>
+    `;
+  }
+  return html;
+}
+
+function wireInspectorSensor(host, w, up) {
+  host.querySelector('select[data-f="sensorId"]')?.addEventListener("change", e => {
+    w.sensorId = e.target.value; renderStudio();
+  });
+  host.querySelector('[data-action="new-sensor"]')?.addEventListener("click", () => {
+    const id = "sen-new-" + Date.now().toString(36);
+    const tagBase = (up.name||"UP").toUpperCase().replace(/[^A-Z0-9]+/g,"_");
+    const newSen = { id, name: "New sensor", tag: `${tagBase}.LIVE_${Date.now().toString(36).slice(-3).toUpperCase()}`, unit: "", value: 0 };
+    (window.SENSORS||(window.SENSORS=[])).push(newSen);
+    w.sensorId = id;
+    renderStudio();
+  });
+  host.querySelector('[data-action="save-sen"]')?.addEventListener("click", () => {
+    const sen = (window.SENSORS||[]).find(s => s.id === w.sensorId); if (!sen) return;
+    const get = sel => host.querySelector(`[data-sen="${sel}"]`)?.value;
+    sen.name = (get("name")||"").trim() || sen.name;
+    sen.tag  = (get("tag") ||"").trim() || sen.tag;
+    sen.unit = (get("unit")||"").trim();
+    const v = parseFloat(get("value")); if (!isNaN(v)) sen.value = v;
+    toast(`Saved · ${sen.name}`, "ok");
+    renderStudio();
+  });
+  host.querySelector('[data-action="delete-sen"]')?.addEventListener("click", () => {
+    const sen = (window.SENSORS||[]).find(s => s.id === w.sensorId); if (!sen) return;
+    if (!confirm(`Delete sensor "${sen.name}"? This removes it from every dashboard.`)) return;
+    for (const u of (window.UNIT_PROCESSES||[])) {
+      u.layout = (u.layout||[]).filter(wgt => wgt.sensorId !== sen.id);
+    }
+    window.SENSORS = (window.SENSORS||[]).filter(s => s.id !== sen.id);
+    studioSelectedWidgetId = null;
+    toast(`Deleted sensor · ${sen.name}`, "ok");
+    renderStudio();
+  });
+}
+
+function escAttr(s) { return String(s||"").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
 
 function installPaletteDrag() {
   document.querySelectorAll(".palette-widget").forEach(el => {
