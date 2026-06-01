@@ -72,10 +72,14 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
       Unit Processes
     </button>
-    <button class="dp-mode-toggle" id="configToggle" aria-pressed="false" title="Toggle configuration mode">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      <span class="mode-label">Client view</span>
-    </button>
+    <div class="dp-page-select">
+      <select id="pageSelect">
+        <option value="layout">Plant Layout</option>
+        <option value="dashboard">Dashboard</option>
+        <option value="studio">⚙ Studio (configure)</option>
+      </select>
+      <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2,3 L5,7 L8,3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
   </div>
 </div>
 
@@ -96,7 +100,103 @@
     </div>
   </section>
 
+  <!-- ====================== DASHBOARD (operator, full-screen) ====================== -->
+  <section class="view view-dashboard hidden" id="view-dashboard">
+    <div class="dash-head">
+      <div>
+        <h2>Operator Dashboard</h2>
+        <p class="muted">Configured by your implementation team. Click <b>Edit</b> on any set point to override its value.</p>
+      </div>
+      <div class="dash-head-right">
+        <span class="dash-version">Layout v<b id="dashVersion">1</b> · <span id="dashVersionDate">—</span></span>
+        <select id="dashFilter" class="dp-page-select-inline">
+          <option value="">All unit processes</option>
+        </select>
+      </div>
+    </div>
+    <div id="dashBody" class="dash-body"></div>
+  </section>
+
+  <!-- ====================== STUDIO (implementer) ====================== -->
+  <section class="view view-studio hidden" id="view-studio">
+    <div class="studio-head">
+      <div>
+        <h2>Set Point Studio</h2>
+        <p class="muted">Define unit processes, add set points & sensors, drag-arrange the operator dashboard layout.</p>
+      </div>
+      <div class="studio-head-right">
+        <span class="dash-version">Current published · v<b id="studioVersion">1</b></span>
+        <button class="dp-btn ghost" id="studioPreview">Preview as operator</button>
+        <button class="dp-btn primary" id="studioPublish">Publish to operators</button>
+      </div>
+    </div>
+    <div class="studio-shell">
+      <aside class="studio-palette">
+        <div class="palette-section">
+          <div class="palette-title">UNIT PROCESSES</div>
+          <div id="studioUpList" class="palette-list"></div>
+          <button class="palette-add" id="studioAddUp">+ New unit process</button>
+        </div>
+        <div class="palette-section">
+          <div class="palette-title">ADD TO CANVAS</div>
+          <div class="palette-widget" draggable="true" data-add="setpoint">
+            <span class="pw-ic">▦</span><div><b>Set point</b><small>Operator-adjustable value</small></div>
+          </div>
+          <div class="palette-widget" draggable="true" data-add="sensor">
+            <span class="pw-ic">⏵</span><div><b>Live sensor</b><small>Read-only PLC value</small></div>
+          </div>
+          <div class="palette-widget" draggable="true" data-add="header">
+            <span class="pw-ic">H</span><div><b>Group header</b><small>Section divider with title</small></div>
+          </div>
+          <div class="palette-widget" draggable="true" data-add="divider">
+            <span class="pw-ic">―</span><div><b>Divider</b><small>Thin separator line</small></div>
+          </div>
+          <div class="palette-widget" draggable="true" data-add="note">
+            <span class="pw-ic">¶</span><div><b>Note</b><small>Static text block</small></div>
+          </div>
+        </div>
+      </aside>
+      <main class="studio-canvas">
+        <div class="canvas-head">
+          <div>
+            <input type="text" id="studioUpName" class="canvas-up-name" placeholder="Unit process name" />
+            <div class="canvas-up-meta"><span id="studioUpEquipCount">0 equipment</span> · <span id="studioUpSpCount">0 widgets</span></div>
+          </div>
+          <div class="canvas-head-actions">
+            <button class="dp-btn ghost sm" id="studioEditEquip">Edit equipment</button>
+            <button class="dp-btn ghost sm danger" id="studioDeleteUp">Delete UP</button>
+          </div>
+        </div>
+        <div class="canvas-grid" id="studioCanvas"></div>
+      </main>
+      <aside class="studio-inspector" id="studioInspector">
+        <div class="insp-empty">Pick a widget to edit its properties.</div>
+      </aside>
+    </div>
+  </section>
 </main>
+
+<!-- ====================== EQUIPMENT PICKER MODAL (Studio) ====================== -->
+<div id="equipPickerModal" class="modal hidden">
+  <div class="modal-card sp-modal">
+    <div class="sp-modal-head">
+      <h2>Equipment linked to this unit process</h2>
+      <button class="sp-modal-x" id="equipPickerClose">✕</button>
+    </div>
+    <div class="sp-modal-body">
+      <div class="ms-menu-list" id="equipPickerList" style="max-height:380px;overflow:auto"></div>
+    </div>
+    <div class="sp-modal-foot">
+      <button class="dp-btn primary" id="equipPickerSave">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====================== VERSION NUDGE BANNER ====================== -->
+<div id="versionNudge" class="version-nudge hidden">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+  <span>New dashboard layout available · <button id="versionReload">refresh now</button></span>
+</div>
 
 <!-- ====================== SET POINTS DRAWER (operator editor) ====================== -->
 <aside class="dp-side wide hidden" id="setPointsPanel" aria-label="Set Points">

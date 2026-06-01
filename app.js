@@ -714,8 +714,357 @@ function openInlineEdit(tile, sp) {
 // =====================================================================
 function switchPage(p) {
   document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
-  $("#view-layout").classList.remove("hidden");
-  requestAnimationFrame(renderScada);
+  if (p === "dashboard") {
+    $("#view-dashboard").classList.remove("hidden");
+    renderDashboard();
+  } else if (p === "studio") {
+    $("#view-studio").classList.remove("hidden");
+    renderStudio();
+    installPaletteDrag();
+  } else {
+    $("#view-layout").classList.remove("hidden");
+    requestAnimationFrame(renderScada);
+  }
+}
+
+// =====================================================================
+// LAYOUT-DRIVEN WIDGET RENDERING (shared by Dashboard, Drawer & Studio)
+// =====================================================================
+function renderWidget(w, ctx) {
+  const node = document.createElement("div");
+  node.className = "dash-w col-" + (w.col || 4);
+  node.dataset.widgetId = w.id;
+  if (w.type === "setpoint") {
+    const sp = (window.SETPOINTS||[]).find(s => s.id === w.spId);
+    if (!sp) { node.innerHTML = `<div class="w-note">Missing set point <code>${w.spId}</code></div>`; return node; }
+    if (w.ltGroupId) {
+      const group = ltGroupForSpId(w.spId);
+      if (group) { node.appendChild(renderSetpointWidgetLt(group, ctx)); return node; }
+    }
+    node.appendChild(renderSetpointWidget(sp, ctx));
+  } else if (w.type === "sensor") {
+    const sen = (window.SENSORS||[]).find(s => s.id === w.sensorId);
+    if (!sen) { node.innerHTML = `<div class="w-note">Missing sensor <code>${w.sensorId}</code></div>`; return node; }
+    node.appendChild(renderSensorWidget(sen));
+  } else if (w.type === "header") {
+    node.innerHTML = `<div class="w-header"><div class="w-h-text">${w.text||"Section"}</div><div class="w-h-rule"></div></div>`;
+  } else if (w.type === "divider") {
+    node.innerHTML = `<div class="w-divider"></div>`;
+  } else if (w.type === "note") {
+    node.innerHTML = `<div class="w-note">${w.text||"Note"}</div>`;
+  }
+  return node;
+}
+function renderSetpointWidget(sp) {
+  const wrap = document.createElement("div");
+  wrap.className = "w-setpoint";
+  const typeShort = (sp.type || "SP").split(" ")[0].slice(0,3).toUpperCase();
+  wrap.innerHTML = `
+    <div class="w-head">
+      <div class="w-tile">${typeShort}</div>
+      <div>
+        <div class="w-name">${sp.name}</div>
+        <div class="w-sub">${sp.type} · ${sp.equipment||""}</div>
+      </div>
+      <button class="w-bell" title="Notification preferences">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+      </button>
+    </div>
+    <div class="w-readout">
+      <div class="w-readout-cell"><span class="lbl">CURRENT</span><span class="v">${sp.current} ${sp.unit}</span></div>
+      <div class="w-readout-cell"><span class="lbl">SAFE RANGE</span><span class="v" style="color:var(--text-2)">${spRangeText(sp)}</span></div>
+    </div>
+    <div class="w-actions">
+      <button class="dp-btn primary sm" data-w-edit>✎ Edit</button>
+    </div>
+  `;
+  wrap.querySelector(".w-bell").addEventListener("click", e => { e.stopPropagation(); openNotifyPopover(sp); });
+  wrap.querySelector("[data-w-edit]").addEventListener("click", e => { e.stopPropagation(); toast(`Edit ${sp.name} via the Unit Processes drawer`, "warn"); openSetPointsDrawer(); });
+  return wrap;
+}
+function renderSetpointWidgetLt(group) {
+  const wrap = document.createElement("div");
+  wrap.className = "w-setpoint";
+  const m = group.members; const u = m[0]?.unit || "%";
+  const v = (role) => m.find(x => x.subRole === role)?.current ?? "—";
+  wrap.innerHTML = `
+    <div class="w-head">
+      <div class="w-tile">LT</div>
+      <div><div class="w-name">${group.groupName}</div><div class="w-sub">LT · 4 HMI tags</div></div>
+      <button class="w-bell"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg></button>
+    </div>
+    <div class="w-readout">
+      <div class="w-readout-cell"><span class="lbl">SOURCE</span><span class="v">${v("SOURCEMIN")} – ${v("SOURCEMAX")} ${u}</span></div>
+      <div class="w-readout-cell"><span class="lbl">DESTINATION</span><span class="v">${v("DESTMIN")} – ${v("DESTMAX")} ${u}</span></div>
+    </div>
+    <div class="w-actions"><button class="dp-btn primary sm" data-w-edit-lt>✎ Edit all 4</button></div>
+  `;
+  wrap.querySelector(".w-bell").addEventListener("click", e => { e.stopPropagation(); openNotifyPopover(m[0]); });
+  wrap.querySelector("[data-w-edit-lt]").addEventListener("click", e => { e.stopPropagation(); toast(`Edit ${group.groupName} via the Unit Processes drawer`, "warn"); openSetPointsDrawer(); });
+  return wrap;
+}
+function renderSensorWidget(sen) {
+  const wrap = document.createElement("div");
+  wrap.className = "w-sensor";
+  wrap.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;justify-content:space-between">
+      <span class="w-name">${sen.name}</span>
+      <span class="live-dot"></span>
+    </div>
+    <code class="w-tag">${sen.tag}</code>
+    <div class="w-value"><span class="v">${sen.value}</span><span class="u">${sen.unit}</span></div>
+  `;
+  return wrap;
+}
+function ltGroupForSpId(spId) {
+  const sp = (window.SETPOINTS||[]).find(s => s.id === spId);
+  if (!sp || sp.type !== "LT" || !sp.groupId) return null;
+  const members = (window.SETPOINTS||[]).filter(s => s.groupId === sp.groupId);
+  return { groupId: sp.groupId, groupName: sp.groupName, members };
+}
+
+// =====================================================================
+// DASHBOARD (operator full-screen view)
+// =====================================================================
+function renderDashboard() {
+  $("#dashVersion").textContent = window.LAYOUT_VERSION.version;
+  $("#dashVersionDate").textContent = new Date(window.LAYOUT_VERSION.publishedAt).toLocaleString("en-GB", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" });
+  const filter = $("#dashFilter");
+  const cur = filter.value;
+  filter.innerHTML = `<option value="">All unit processes</option>` +
+    (window.UNIT_PROCESSES||[]).map(up => `<option value="${up.id}" ${cur===up.id?"selected":""}>${up.name}</option>`).join("");
+  filter.onchange = () => renderDashboard();
+  const body = $("#dashBody"); body.innerHTML = "";
+  const ups = (window.UNIT_PROCESSES||[]).filter(up => !cur || up.id === cur);
+  if (!ups.length) { body.innerHTML = `<div class="up-empty">No unit processes.</div>`; return; }
+  for (const up of ups) {
+    const sec = document.createElement("div");
+    sec.className = "dash-up";
+    sec.innerHTML = `
+      <div class="dash-up-head">
+        <div class="dash-up-title">${up.name}</div>
+        <div class="dash-up-meta">${up.equipmentIds.length} equipment · ${(up.layout||[]).length} widget${(up.layout||[]).length===1?"":"s"}</div>
+      </div>
+      <div class="dash-grid" data-up-grid></div>
+    `;
+    const grid = sec.querySelector("[data-up-grid]");
+    if (!(up.layout||[]).length) {
+      grid.innerHTML = `<div class="canvas-empty" style="grid-column:span 12">No widgets configured. Open Studio to add some.</div>`;
+    } else {
+      for (const w of up.layout) grid.appendChild(renderWidget(w, {readonly:true}));
+    }
+    body.appendChild(sec);
+  }
+}
+
+// =====================================================================
+// STUDIO (implementer builder)
+// =====================================================================
+let studioSelectedUpId = null;
+let studioSelectedWidgetId = null;
+
+function renderStudio() {
+  $("#studioVersion").textContent = window.LAYOUT_VERSION.version;
+  if (!studioSelectedUpId && (window.UNIT_PROCESSES||[]).length) studioSelectedUpId = window.UNIT_PROCESSES[0].id;
+  renderStudioUpList();
+  renderStudioCanvas();
+  renderStudioInspector();
+}
+function renderStudioUpList() {
+  const host = $("#studioUpList"); host.innerHTML = "";
+  for (const up of (window.UNIT_PROCESSES||[])) {
+    const el = document.createElement("button");
+    el.className = "palette-up" + (up.id === studioSelectedUpId ? " active" : "");
+    el.innerHTML = `<span>${up.name}</span><span class="pu-count">${(up.layout||[]).length}w</span>`;
+    el.addEventListener("click", () => { studioSelectedUpId = up.id; studioSelectedWidgetId = null; renderStudio(); });
+    host.appendChild(el);
+  }
+}
+function studioSelectedUp() { return (window.UNIT_PROCESSES||[]).find(u => u.id === studioSelectedUpId); }
+function studioSelectedWidget() { const up = studioSelectedUp(); if (!up) return null; return (up.layout||[]).find(w => w.id === studioSelectedWidgetId); }
+
+function renderStudioCanvas() {
+  const up = studioSelectedUp();
+  if (!up) { $("#studioCanvas").innerHTML = `<div class="canvas-empty">No unit process selected.</div>`; return; }
+  $("#studioUpName").value = up.name;
+  $("#studioUpEquipCount").textContent = `${up.equipmentIds.length} equipment`;
+  $("#studioUpSpCount").textContent = `${(up.layout||[]).length} widgets`;
+
+  const canvas = $("#studioCanvas");
+  canvas.innerHTML = "";
+  if (!up.layout || !up.layout.length) {
+    canvas.innerHTML = `<div class="canvas-empty">Drag a widget from the palette to start arranging this unit process.</div>`;
+  } else {
+    for (const w of up.layout) {
+      const cell = renderWidget(w, {studio:true});
+      cell.classList.add("canvas-w", "col-"+(w.col||4));
+      cell.classList.remove("dash-w");
+      cell.dataset.widgetId = w.id;
+      cell.draggable = true;
+      if (w.id === studioSelectedWidgetId) cell.classList.add("selected");
+      const actions = document.createElement("div");
+      actions.className = "canvas-w-actions";
+      actions.innerHTML = `<button title="Move up">↑</button><button title="Move down">↓</button><button class="del" title="Delete">✕</button>`;
+      cell.appendChild(actions);
+      actions.children[0].addEventListener("click", e => { e.stopPropagation(); moveWidget(up, w.id, -1); });
+      actions.children[1].addEventListener("click", e => { e.stopPropagation(); moveWidget(up, w.id, +1); });
+      actions.children[2].addEventListener("click", e => { e.stopPropagation(); deleteWidget(up, w.id); });
+      cell.addEventListener("click", e => { e.stopPropagation(); studioSelectedWidgetId = w.id; renderStudio(); });
+      cell.addEventListener("dragstart", e => { e.dataTransfer.effectAllowed="move"; e.dataTransfer.setData("text/widget", w.id); cell.classList.add("dragging"); });
+      cell.addEventListener("dragend", () => cell.classList.remove("dragging"));
+      cell.addEventListener("dragover", e => { e.preventDefault(); e.dataTransfer.dropEffect="move"; });
+      cell.addEventListener("drop", e => {
+        e.preventDefault(); e.stopPropagation();
+        const movedId = e.dataTransfer.getData("text/widget");
+        const newType = e.dataTransfer.getData("text/widget-type");
+        if (movedId) reorderWidget(up, movedId, w.id);
+        else if (newType) insertNewWidget(up, newType, w.id);
+      });
+      canvas.appendChild(cell);
+    }
+  }
+  canvas.addEventListener("dragover", e => { e.preventDefault(); canvas.classList.add("drop-target"); });
+  canvas.addEventListener("dragleave", () => canvas.classList.remove("drop-target"));
+  canvas.addEventListener("drop", e => {
+    e.preventDefault(); canvas.classList.remove("drop-target");
+    const newType = e.dataTransfer.getData("text/widget-type");
+    if (newType) insertNewWidget(up, newType, null);
+  });
+}
+function reorderWidget(up, movedId, targetId) {
+  const arr = up.layout;
+  const fromIdx = arr.findIndex(w => w.id === movedId);
+  const toIdx   = arr.findIndex(w => w.id === targetId);
+  if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
+  const [item] = arr.splice(fromIdx, 1);
+  arr.splice(toIdx, 0, item);
+  renderStudio();
+}
+function moveWidget(up, id, dir) {
+  const arr = up.layout;
+  const i = arr.findIndex(w => w.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= arr.length) return;
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+  renderStudio();
+}
+function deleteWidget(up, id) {
+  up.layout = (up.layout||[]).filter(w => w.id !== id);
+  if (studioSelectedWidgetId === id) studioSelectedWidgetId = null;
+  renderStudio();
+}
+function insertNewWidget(up, type, beforeId) {
+  const newW = { id: "w-" + Date.now().toString(36), type, col: (type==="header"||type==="divider"||type==="note") ? 12 : 4 };
+  if (type === "header") newW.text = "New section";
+  if (type === "note")   newW.text = "Add your note here.";
+  if (type === "setpoint") {
+    const sp = (window.SETPOINTS||[]).find(s => up.setpointIds.includes(s.id) && !up.layout?.some(w => w.spId === s.id));
+    if (sp) newW.spId = sp.id;
+  }
+  if (type === "sensor") newW.sensorId = (window.SENSORS||[])[0]?.id;
+  up.layout = up.layout || [];
+  if (beforeId) {
+    const idx = up.layout.findIndex(w => w.id === beforeId);
+    up.layout.splice(idx, 0, newW);
+  } else up.layout.push(newW);
+  studioSelectedWidgetId = newW.id;
+  renderStudio();
+}
+
+function renderStudioInspector() {
+  const host = $("#studioInspector");
+  const up = studioSelectedUp();
+  const w = studioSelectedWidget();
+  if (!w) { host.innerHTML = `<div class="insp-empty">Pick a widget to edit its properties.</div>`; return; }
+  let body = `
+    <div class="insp-section"><span class="insp-label">Widget · ${w.type}</span></div>
+    <div class="insp-section">
+      <span class="insp-label">Width (columns)</span>
+      <div class="insp-cols">
+        ${[2,3,4,6,8,12].map(c => `<button class="insp-col-btn ${w.col===c?"active":""}" data-col="${c}">${c}</button>`).join("")}
+      </div>
+    </div>`;
+  if (w.type === "setpoint") {
+    const sps = (window.SETPOINTS||[]).filter(s => up.setpointIds.includes(s.id));
+    body += `<div class="insp-section"><span class="insp-label">Set point</span>
+      <select data-f="spId">${sps.map(s => `<option value="${s.id}" ${w.spId===s.id?"selected":""}>${s.name}</option>`).join("")}</select></div>`;
+  }
+  if (w.type === "sensor") {
+    body += `<div class="insp-section"><span class="insp-label">Sensor tag</span>
+      <select data-f="sensorId">${(window.SENSORS||[]).map(s => `<option value="${s.id}" ${w.sensorId===s.id?"selected":""}>${s.name} · ${s.tag}</option>`).join("")}</select></div>`;
+  }
+  if (w.type === "header" || w.type === "note") {
+    body += `<div class="insp-section"><span class="insp-label">Text</span>
+      <textarea data-f="text" rows="${w.type==="note"?3:2}">${w.text||""}</textarea></div>`;
+  }
+  body += `<div class="insp-section" style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px">
+    <button class="dp-btn ghost sm danger" data-w-delete>Delete widget</button>
+  </div>`;
+  host.innerHTML = body;
+  host.querySelectorAll(".insp-col-btn").forEach(b => b.addEventListener("click", () => { w.col = parseInt(b.dataset.col, 10); renderStudio(); }));
+  host.querySelectorAll("select[data-f]").forEach(el => el.addEventListener("change", e => { w[el.dataset.f] = el.value; renderStudio(); }));
+  host.querySelectorAll("textarea[data-f]").forEach(el => el.addEventListener("input", e => { w[el.dataset.f] = el.value; }));
+  host.querySelector("[data-w-delete]")?.addEventListener("click", () => deleteWidget(up, w.id));
+}
+
+function installPaletteDrag() {
+  document.querySelectorAll(".palette-widget").forEach(el => {
+    el.addEventListener("dragstart", e => {
+      e.dataTransfer.effectAllowed = "copy";
+      e.dataTransfer.setData("text/widget-type", el.dataset.add);
+    });
+  });
+}
+function studioPublish() {
+  window.LAYOUT_VERSION = { version: (window.LAYOUT_VERSION.version || 0) + 1, publishedAt: new Date().toISOString() };
+  toast(`Published v${window.LAYOUT_VERSION.version} · operators will see a refresh nudge`, "ok");
+  renderStudio();
+  showVersionNudge();
+}
+function showVersionNudge() {
+  const n = document.getElementById("versionNudge");
+  if (!n) return;
+  n.classList.remove("hidden");
+}
+function studioAddUp() {
+  const id = "up-" + Date.now().toString(36);
+  (window.UNIT_PROCESSES||[]).push({ id, name: "New unit process", description:"", equipmentIds: [], setpointIds: [], layout: [] });
+  studioSelectedUpId = id; studioSelectedWidgetId = null;
+  renderStudio();
+}
+function studioDeleteUp() {
+  const up = studioSelectedUp(); if (!up) return;
+  if (!confirm(`Delete unit process "${up.name}" and its ${(up.layout||[]).length} widgets?`)) return;
+  window.UNIT_PROCESSES = (window.UNIT_PROCESSES||[]).filter(u => u.id !== up.id);
+  studioSelectedUpId = (window.UNIT_PROCESSES||[])[0]?.id || null;
+  studioSelectedWidgetId = null;
+  renderStudio();
+}
+function openEquipPicker() {
+  const up = studioSelectedUp(); if (!up) return;
+  const list = document.getElementById("equipPickerList");
+  list.innerHTML = "";
+  for (const id of Object.keys(DEVICES)) {
+    const dev = DEVICES[id];
+    const checked = up.equipmentIds.includes(id);
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "ms-item" + (checked ? " selected" : "");
+    item.dataset.id = id;
+    item.innerHTML = `<span class="ms-check">${checked?'✓':''}</span><span class="ms-name">${dev.name}</span>`;
+    item.addEventListener("click", () => {
+      item.classList.toggle("selected");
+      item.querySelector(".ms-check").textContent = item.classList.contains("selected") ? "✓" : "";
+    });
+    list.appendChild(item);
+  }
+  document.getElementById("equipPickerModal").classList.remove("hidden");
+}
+function saveEquipPicker() {
+  const up = studioSelectedUp(); if (!up) return;
+  up.equipmentIds = Array.from(document.querySelectorAll("#equipPickerList .ms-item.selected")).map(b => b.dataset.id);
+  document.getElementById("equipPickerModal").classList.add("hidden");
+  renderStudio();
 }
 
 // =====================================================================
@@ -1839,6 +2188,31 @@ document.addEventListener("DOMContentLoaded", () => {
   // Warning override modal (shared)
   $("#scWarnCancel")?.addEventListener("click", cancelWarn);
   $("#scWarnOverride")?.addEventListener("click", overrideWarn);
+
+  // Studio
+  $("#studioUpName")?.addEventListener("input", e => {
+    const up = studioSelectedUp(); if (!up) return;
+    up.name = e.target.value;
+    renderStudioUpList();
+  });
+  $("#studioAddUp")?.addEventListener("click", studioAddUp);
+  $("#studioDeleteUp")?.addEventListener("click", studioDeleteUp);
+  $("#studioEditEquip")?.addEventListener("click", openEquipPicker);
+  $("#studioPublish")?.addEventListener("click", studioPublish);
+  $("#studioPreview")?.addEventListener("click", () => {
+    document.getElementById("pageSelect").value = "dashboard";
+    switchPage("dashboard");
+  });
+  $("#equipPickerClose")?.addEventListener("click", () => document.getElementById("equipPickerModal").classList.add("hidden"));
+  $("#equipPickerSave")?.addEventListener("click", saveEquipPicker);
+
+  // Version nudge
+  $("#versionReload")?.addEventListener("click", () => {
+    document.getElementById("versionNudge").classList.add("hidden");
+    if (document.getElementById("view-dashboard").classList.contains("hidden") === false) renderDashboard();
+    if (document.getElementById("setPointsPanel").classList.contains("hidden") === false) renderSpDrawer();
+    toast(`Loaded layout v${window.LAYOUT_VERSION.version}`, "ok");
+  });
 
   // Set Points filters
   $("#spSearch")?.addEventListener("input", renderSetpointsPage);

@@ -3,7 +3,20 @@
 //   DO · PT · LT (Transfer Pump) · Flow · Switchover Time
 // =====================================================================
 
-window.SP_TYPES = ["DO", "PT", "LT", "Flow", "Switchover Time"];
+window.SP_TYPES = ["DO", "PT", "LT", "Flow", "Switchover Time", "Custom"];
+
+// Sensor catalogue — live PLC tags exposed as read-only widgets in dashboards
+window.SENSORS = [
+  { id:"sen-do-live-b1", name:"DO Live · Basin 1", tag:"AIT_101.LIVE", unit:"mg/L", value:2.1 },
+  { id:"sen-do-live-b2", name:"DO Live · Basin 2", tag:"AIT_102.LIVE", unit:"mg/L", value:1.9 },
+  { id:"sen-pt-header",  name:"Header Pressure",   tag:"PIT_301.LIVE", unit:"bar",  value:0.65 },
+  { id:"sen-flow-perm",  name:"Permeate Flow",     tag:"FIT_601.LIVE", unit:"m³/hr", value:88 },
+  { id:"sen-lvl-src",    name:"Source Tank Level", tag:"LIT_201.LIVE", unit:"%",    value:42 },
+  { id:"sen-lvl-dst",    name:"Dest Tank Level",   tag:"LIT_202.LIVE", unit:"%",    value:58 },
+];
+
+// Layout schema versioning — Studio bumps version on Publish; clients show nudge
+window.LAYOUT_VERSION = { version: 1, publishedAt: "2026-06-01T00:00:00Z" };
 
 // Auto-generate an HMI tag from a unit process + type + index.
 // The PLC team maps this synthetic tag to the real PLC tag in their layer.
@@ -32,6 +45,16 @@ window.UNIT_PROCESSES = [
     description: "Provides dissolved oxygen to biological treatment in CASS basins via blowers and air-inlet valves.",
     equipmentIds: ["BLOWER1", "BLOWER2", "BLOWER3", "BLOWER4", "AIR1", "AIR2"],
     setpointIds:  ["sp-do-cass1", "sp-do-cass2", "sp-pt-header", "sp-sw-blw"],
+    layout: [
+      { id:"w-aer-h1", type:"header", text:"Zone-3 monitoring", col:12 },
+      { id:"w-aer-1",  type:"setpoint", spId:"sp-do-cass1", col:4 },
+      { id:"w-aer-2",  type:"setpoint", spId:"sp-do-cass2", col:4 },
+      { id:"w-aer-3",  type:"sensor",   sensorId:"sen-do-live-b1", col:4 },
+      { id:"w-aer-4",  type:"setpoint", spId:"sp-pt-header", col:6 },
+      { id:"w-aer-5",  type:"sensor",   sensorId:"sen-pt-header", col:6 },
+      { id:"w-aer-d1", type:"divider", col:12 },
+      { id:"w-aer-6",  type:"setpoint", spId:"sp-sw-blw", col:12 },
+    ],
   },
   {
     id: "up-recirc",
@@ -39,6 +62,11 @@ window.UNIT_PROCESSES = [
     description: "Re-circulates mixed liquor between basin zones to maintain biological activity.",
     equipmentIds: ["RECIRC_A1", "RECIRC_A2", "RECIRC_B1", "RECIRC_B2"],
     setpointIds:  ["sp-lt-src-min", "sp-lt-src-max", "sp-lt-dst-min", "sp-lt-dst-max"],
+    layout: [
+      { id:"w-rec-1", type:"setpoint", spId:"sp-lt-src-min", col:12, ltGroupId:"lt-uffeed" },
+      { id:"w-rec-2", type:"sensor",   sensorId:"sen-lvl-src", col:6 },
+      { id:"w-rec-3", type:"sensor",   sensorId:"sen-lvl-dst", col:6 },
+    ],
   },
   {
     id: "up-decant",
@@ -46,6 +74,9 @@ window.UNIT_PROCESSES = [
     description: "Removes treated effluent at the end of each SBR cycle.",
     equipmentIds: ["DECANTER", "SBR1_INLET", "SBR2_INLET"],
     setpointIds:  [],
+    layout: [
+      { id:"w-dec-n1", type:"note", text:"No set points configured for this unit process yet.", col:12 },
+    ],
   },
   {
     id: "up-permeate",
@@ -53,6 +84,10 @@ window.UNIT_PROCESSES = [
     description: "Transfers permeate from UF outlet to storage at controlled flow rate.",
     equipmentIds: ["SLUDGE_A1", "SLUDGE_A2"],
     setpointIds:  ["sp-flow-perm"],
+    layout: [
+      { id:"w-per-1", type:"setpoint", spId:"sp-flow-perm", col:8 },
+      { id:"w-per-2", type:"sensor",   sensorId:"sen-flow-perm", col:4 },
+    ],
   },
 ];
 
