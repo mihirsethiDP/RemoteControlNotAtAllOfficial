@@ -1080,6 +1080,123 @@ body.side-drawer-open { overflow: hidden; }
 .dp-btn.ghost.sm[data-action="new-sp"]:hover,
 .dp-btn.ghost.sm[data-action="new-sensor"]:hover { background: var(--primary-2); color: #fff; }
 
+/* =====================================================================
+   SIMPLE SET POINT CONFIGURATION VIEW
+   ===================================================================== */
+.view-cfg { padding: 0 22px 22px; }
+.cfg-page {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 12px; padding: 22px; margin-top: 14px;
+}
+.cfg-page-head-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; gap: 14px; }
+.cfg-page-head-row h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--text); }
+.cfg-page-head-row p { margin: 4px 0 0; font-size: 12.5px; max-width: 520px; }
+
+.cfg-toolbar2 {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 8px; margin-bottom: 12px;
+}
+.cfg-toolbar2 input, .cfg-toolbar2 select {
+  padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px;
+  background: #fff; font-size: 12.5px; color: var(--text); font-family: inherit;
+}
+.cfg-toolbar2 input { flex: 1; }
+.cfg-toolbar2 select { flex: 0 0 180px; }
+
+.cfg-table2 {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 8px; overflow: hidden;
+}
+.cfg-row2 {
+  display: grid; grid-template-columns: 80px 2fr 1.4fr 1.2fr 1fr 50px;
+  gap: 14px; align-items: center; padding: 12px 16px;
+  border-bottom: 1px solid var(--line-2); cursor: pointer;
+  transition: background .12s;
+}
+.cfg-row2:hover { background: #fafbff; }
+.cfg-row2:last-child { border-bottom: 0; }
+.cfg-row2.head { background: #f3eee3; cursor: default; font-size: 10.5px; letter-spacing: .8px; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.cfg-row2 .c-type {
+  display: inline-block; font-size: 10px; padding: 3px 8px;
+  background: #eef2f7; color: var(--primary); border: 1px solid #dde6f3;
+  border-radius: 4px; font-weight: 700;
+}
+.cfg-row2 .c-name { font-size: 13px; font-weight: 700; color: var(--text); }
+.cfg-row2 .c-desc { font-size: 11.5px; color: var(--muted); margin-top: 2px; line-height: 1.4; max-height: 38px; overflow: hidden; }
+.cfg-row2 .c-range { font-family: ui-monospace, monospace; font-size: 12px; color: var(--text); }
+.cfg-row2 .c-hmi code {
+  font-family: ui-monospace, monospace; font-size: 10.5px;
+  background: #fafaf6; border: 1px solid var(--line); padding: 1px 6px; border-radius: 3px;
+  color: var(--text-2); word-break: break-all;
+}
+.cfg-row2 .ic-btn { width: 32px; height: 32px; }
+
+/* TP sub-list inside a row */
+.cfg-tp-sublist {
+  grid-column: 1 / -1;
+  display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px;
+  padding: 8px 0 0 80px;
+  font-size: 11px; color: var(--text-2);
+}
+.cfg-tp-cell {
+  background: #fafaf6; border: 1px solid var(--line); border-radius: 5px;
+  padding: 6px 8px;
+}
+.cfg-tp-cell .k {
+  font-size: 9px; letter-spacing: .8px; text-transform: uppercase;
+  color: var(--muted); font-weight: 700;
+}
+.cfg-tp-cell .v {
+  font-family: ui-monospace, monospace; font-size: 11.5px; font-weight: 700;
+  color: var(--text); margin-top: 2px;
+}
+
+/* Modal — config form fields */
+.cfg2-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.cfg2-field > label {
+  font-size: 10.5px; letter-spacing: .8px; text-transform: uppercase;
+  color: var(--muted); font-weight: 700;
+}
+.cfg2-field input[type="text"],
+.cfg2-field input[type="number"],
+.cfg2-field select,
+.cfg2-field textarea {
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 5px;
+  background: #fff; font-size: 12.5px; color: var(--text); font-family: inherit;
+}
+.cfg2-field input:focus, .cfg2-field select:focus, .cfg2-field textarea:focus {
+  outline: none; border-color: var(--primary-2); box-shadow: 0 0 0 3px rgba(42,108,240,.12);
+}
+.cfg2-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cfg2-input { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 5px; background: #fff; overflow: hidden; }
+.cfg2-input input { flex: 1; border: 0; outline: 0; padding: 8px 10px; background: transparent; font-size: 12.5px; min-width: 0; }
+.cfg2-input .u { padding: 0 10px; font-size: 11px; color: var(--muted); font-weight: 600; border-left: 1px solid var(--line); background: #fafaf6; }
+
+/* Transfer Pump sub-blocks in modal */
+.cfg2-tp-block {
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 12px; margin-bottom: 10px;
+}
+.cfg2-tp-title {
+  font-size: 11px; letter-spacing: .6px; text-transform: uppercase;
+  color: var(--text); font-weight: 700; margin-bottom: 8px;
+}
+.cfg2-tp-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.cfg2-tp-row .cfg2-field { margin-bottom: 0; }
+
+.cfg2-hmi {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; background: #fafaf6; border: 1px solid var(--line);
+  border-radius: 5px; margin-bottom: 8px;
+}
+.cfg2-hmi-label {
+  font-size: 9.5px; letter-spacing: .8px; text-transform: uppercase;
+  color: var(--muted); font-weight: 700; flex: none;
+}
+.cfg2-hmi-label small { text-transform: none; letter-spacing: 0; font-weight: 500; }
+.cfg2-hmi code { font-family: ui-monospace, monospace; font-size: 11px; color: var(--text); word-break: break-all; flex: 1; }
+
 /* Version nudge */
 .version-nudge {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);

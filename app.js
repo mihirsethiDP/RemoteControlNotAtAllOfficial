@@ -721,10 +721,374 @@ function switchPage(p) {
     $("#view-studio").classList.remove("hidden");
     renderStudio();
     installPaletteDrag();
+  } else if (p === "cfg") {
+    $("#view-cfg").classList.remove("hidden");
+    renderCfgTable();
   } else {
     $("#view-layout").classList.remove("hidden");
     requestAnimationFrame(renderScada);
   }
+}
+
+// =====================================================================
+// SIMPLE SET POINT CONFIGURATION (standalone admin page)
+// =====================================================================
+const CFG_TYPES = [
+  { type: "Level",                 unit: "%"     },
+  { type: "DO",                    unit: "mg/L"  },
+  { type: "Differential Pressure", unit: "bar"   },
+  { type: "pH",                    unit: "pH"    },
+  { type: "FRC",                   unit: "ppm"   },
+  { type: "ORP",                   unit: "mV"    },
+  { type: "Flow",                  unit: "m³/hr" },
+  { type: "Time",                  unit: "min"   },
+  { type: "Transfer Pump",         unit: "%"     },
+];
+
+function cfgUnitFor(type) {
+  return CFG_TYPES.find(t => t.type === type)?.unit || "";
+}
+
+function renderCfgTable() {
+  const search = ($("#cfgSearch2")?.value || "").toLowerCase();
+  const tFilter = $("#cfgFilterType")?.value || "";
+  const list = window.SETPOINTS || [];
+
+  // Populate type filter once
+  const filt = $("#cfgFilterType");
+  if (filt && filt.options.length <= 1) {
+    for (const t of CFG_TYPES) {
+      const opt = document.createElement("option");
+      opt.value = t.type; opt.textContent = t.type;
+      filt.appendChild(opt);
+    }
+  }
+
+  // Collapse Transfer Pump sub-setpoints (with shared groupId) into one row
+  const seen = new Set();
+  const rows = [];
+  for (const sp of list) {
+    if (sp.type === "LT" && sp.groupId) {
+      if (seen.has(sp.groupId)) continue;
+      seen.add(sp.groupId);
+      const members = list.filter(s => s.groupId === sp.groupId);
+      rows.push({ kind: "tp", group: { id: sp.groupId, name: sp.groupName, members } });
+    } else {
+      rows.push({ kind: "single", sp });
+    }
+  }
+
+  const filtered = rows.filter(r => {
+    const sp = r.kind === "tp" ? r.group : r.sp;
+    const type = r.kind === "tp" ? "Transfer Pump" : sp.type;
+    if (tFilter && type !== tFilter) return false;
+    if (search) {
+      const txt = r.kind === "tp"
+        ? (r.group.name + " " + r.group.members.map(m => m.hmiTag).join(" "))
+        : (sp.name + " " + (sp.hmiTag||"") + " " + sp.type + " " + (sp.description||""));
+      if (!txt.toLowerCase().includes(search)) return false;
+    }
+    return true;
+  });
+
+  $("#cfgCount2").textContent = `${filtered.length} configured`;
+
+  const tbl = $("#cfgTable2");
+  tbl.innerHTML = `
+    <div class="cfg-row2 head">
+      <div>Type</div><div>Name &amp; description</div><div>HMI tag</div><div>Range</div><div>Unit</div><div></div>
+    </div>
+  `;
+  if (!filtered.length) {
+    const empty = document.createElement("div");
+    empty.style.cssText = "padding:40px 20px;text-align:center;color:var(--muted);font-size:13px";
+    empty.textContent = "No set points configured. Click + Add set point to create one.";
+    tbl.appendChild(empty);
+    return;
+  }
+  for (const r of filtered) tbl.appendChild(renderCfgRow(r));
+}
+
+function renderCfgRow(r) {
+  if (r.kind === "tp") {
+    const g = r.group;
+    const m = g.members;
+    const srcMin = m.find(x => x.subRole === "SOURCEMIN");
+    const srcMax = m.find(x => x.subRole === "SOURCEMAX");
+    const dstMin = m.find(x => x.subRole === "DESTMIN");
+    const dstMax = m.find(x => x.subRole === "DESTMAX");
+    const row = document.createElement("div");
+    row.className = "cfg-row2";
+    row.dataset.groupId = g.id;
+    row.innerHTML = `
+      <div><span class="c-type">Transfer Pump</span></div>
+      <div>
+        <div class="c-name">${g.name}</div>
+        <div class="c-desc">${m[0]?.description || "Source + destination tank levels — 4 HMI tags"}</div>
+      </div>
+      <div class="c-hmi">${m.map(x => `<code>${x.hmiTag}</code>`).join(" ")}</div>
+      <div class="c-range">
+        Src: ${srcMin?.current ?? "—"} – ${srcMax?.current ?? "—"}<br>
+        Dst: ${dstMin?.current ?? "—"} – ${dstMax?.current ?? "—"}
+      </div>
+      <div class="c-range">%</div>
+      <div><button class="ic-btn">✎</button></div>
+      <div class="cfg-tp-sublist">
+        <div class="cfg-tp-cell"><div class="k">SRC MIN · safe</div><div class="v">${srcMin?.min ?? "—"} – ${srcMin?.max ?? "—"} %</div></div>
+        <div class="cfg-tp-cell"><div class="k">SRC MAX · safe</div><div class="v">${srcMax?.min ?? "—"} – ${srcMax?.max ?? "—"} %</div></div>
+        <div class="cfg-tp-cell"><div class="k">DST MIN · safe</div><div class="v">${dstMin?.min ?? "—"} – ${dstMin?.max ?? "—"} %</div></div>
+        <div class="cfg-tp-cell"><div class="k">DST MAX · safe</div><div class="v">${dstMax?.min ?? "—"} – ${dstMax?.max ?? "—"} %</div></div>
+      </div>
+    `;
+    row.addEventListener("click", () => openCfgModal({ kind: "tp", groupId: g.id }));
+    return row;
+  }
+  const sp = r.sp;
+  const row = document.createElement("div");
+  row.className = "cfg-row2";
+  row.dataset.id = sp.id;
+  row.innerHTML = `
+    <div><span class="c-type">${sp.type}</span></div>
+    <div>
+      <div class="c-name">${sp.name}</div>
+      <div class="c-desc">${sp.description || "—"}</div>
+    </div>
+    <div class="c-hmi"><code>${sp.hmiTag||"—"}</code></div>
+    <div class="c-range">${sp.min ?? "—"} – ${sp.max ?? "—"}</div>
+    <div class="c-range">${sp.unit||"—"}</div>
+    <div><button class="ic-btn">✎</button></div>
+  `;
+  row.addEventListener("click", () => openCfgModal({ kind: "single", spId: sp.id }));
+  return row;
+}
+
+let cfgEditing = null; // { kind:'single', spId } | { kind:'tp', groupId } | null
+
+function openCfgModal(target) {
+  cfgEditing = target || null;
+  $("#cfgFErr").classList.add("hidden");
+  // Populate UP dropdown
+  const upSel = $("#cfgFUp");
+  upSel.innerHTML = `<option value="">(unlinked)</option>` +
+    (window.UNIT_PROCESSES||[]).map(u => `<option value="${u.id}">${u.name}</option>`).join("");
+
+  if (target && target.kind === "single") {
+    const sp = (window.SETPOINTS||[]).find(s => s.id === target.spId);
+    if (!sp) return;
+    $("#cfgModalTitle").textContent = "Edit set point";
+    $("#cfgFType").value = CFG_TYPES.find(t => t.type === sp.type) ? sp.type : "Level";
+    $("#cfgFName").value = sp.name || "";
+    $("#cfgFDesc").value = sp.description || "";
+    const up = (window.UNIT_PROCESSES||[]).find(u => u.setpointIds?.includes(sp.id));
+    upSel.value = up?.id || "";
+    renderCfgSchema(sp.type, sp);
+  } else if (target && target.kind === "tp") {
+    const members = (window.SETPOINTS||[]).filter(s => s.groupId === target.groupId);
+    if (!members.length) return;
+    $("#cfgModalTitle").textContent = "Edit Transfer Pump Set Point";
+    $("#cfgFType").value = "Transfer Pump";
+    $("#cfgFName").value = members[0].groupName || "";
+    $("#cfgFDesc").value = members[0].description || "";
+    const up = (window.UNIT_PROCESSES||[]).find(u => u.setpointIds?.includes(members[0].id));
+    upSel.value = up?.id || "";
+    renderCfgSchema("Transfer Pump", { members });
+  } else {
+    $("#cfgModalTitle").textContent = "Add set point";
+    $("#cfgFType").value = "Level";
+    $("#cfgFName").value = "";
+    $("#cfgFDesc").value = "";
+    upSel.value = "";
+    renderCfgSchema("Level", null);
+  }
+  updateCfgHmi();
+  document.getElementById("cfgModal").classList.remove("hidden");
+}
+function closeCfgModal() { document.getElementById("cfgModal").classList.add("hidden"); cfgEditing = null; }
+
+function renderCfgSchema(type, existing) {
+  const host = $("#cfgFSchema");
+  const unit = cfgUnitFor(type);
+  if (type === "Transfer Pump") {
+    const m = existing?.members || [];
+    const get = (role, field) => m.find(x => x.subRole === role)?.[field];
+    host.innerHTML = `
+      <div class="cfg2-tp-block">
+        <div class="cfg2-tp-title">Source Tank</div>
+        <div class="cfg2-tp-row">
+          <div class="cfg2-field"><label>Start (current)</label>
+            <div class="cfg2-input"><input type="number" step="any" id="cfgF-srcStart" value="${get("SOURCEMIN","current") ?? ""}"><span class="u">${unit}</span></div></div>
+          <div class="cfg2-field"><label>Start · safe min</label>
+            <div class="cfg2-input"><input type="number" step="any" id="cfgF-srcStartMin" value="${get("SOURCEMIN","min") ?? 0}"><span class="u">${unit}</span></div></div>
+          <div class="cfg2-field"><label>Start · safe max</label>
+            <div class="cfg2-input"><input type="number" step="any" id="cfgF-srcStartMax" value="${get("SOURCEMIN","max") ?? 100}"><span class="u">${unit}</span></div></div>
+        </div>
+        <div class="cfg2-tp-row" style="margin-top:6px">
+          <div class="cfg2-field"><label>Stop (current)</label>
+            <div class="cfg2-input"><input type="number" step="any" id="cfgF-srcStop" value="${get("SOURCEMAX","current") ?? ""}"><span class="u">${unit}</span></div></div>
+          <div class="cfg2-field"><label>Stop · safe min</label>
+            <div class="cfg2-input"><input type="number" step="any" id="cfgF-srcStopMin" value="${get("SOURCEMAX","min") ?? 0}"><span class="u">${unit}</span></div></div>
+          <div class="cfg2-field"><label>Stop · safe max</label>
+            <div class="cfg2-input"><input type="number" step="any" id="cfgF-srcStopMax" value="${get("SOURCEMAX","max") ?? 100}"><span class="u">${unit}</span></div></div>
+        </div>
+      </div>
+      <div class="cfg2-tp-block">
+        <div class="cfg2-tp-title">Destination Tank</div>
+        <div class="cfg2-tp-row">
+          <div class="cfg2-field"><label>Start (current)</label>
+            <div class="cfg2-input"><input type="number" step="any" id="cfgF-dstStart" value="${get("DESTMIN","current") ?? ""}"><span class="u">${unit}</span></div></div>
+          <div class="cfg2-field"><label>Start · safe min</label>
+            <div class="cfg2-input"><input type="number" step="any" id="cfgF-dstStartMin" value="${get("DESTMIN","min") ?? 0}"><span class="u">${unit}</span></div></div>
+          <div class="cfg2-field"><label>Start · safe max</label>
+            <div class="cfg2-input"><input type="number" step="any" id="cfgF-dstStartMax" value="${get("DESTMIN","max") ?? 100}"><span class="u">${unit}</span></div></div>
+        </div>
+        <div class="cfg2-tp-row" style="margin-top:6px">
+          <div class="cfg2-field"><label>Stop (current)</label>
+            <div class="cfg2-input"><input type="number" step="any" id="cfgF-dstStop" value="${get("DESTMAX","current") ?? ""}"><span class="u">${unit}</span></div></div>
+          <div class="cfg2-field"><label>Stop · safe min</label>
+            <div class="cfg2-input"><input type="number" step="any" id="cfgF-dstStopMin" value="${get("DESTMAX","min") ?? 0}"><span class="u">${unit}</span></div></div>
+          <div class="cfg2-field"><label>Stop · safe max</label>
+            <div class="cfg2-input"><input type="number" step="any" id="cfgF-dstStopMax" value="${get("DESTMAX","max") ?? 100}"><span class="u">${unit}</span></div></div>
+        </div>
+      </div>
+    `;
+  } else {
+    host.innerHTML = `
+      <div class="cfg2-grid-2">
+        <div class="cfg2-field"><label>Safe Min</label>
+          <div class="cfg2-input"><input type="number" step="any" id="cfgF-min" value="${existing?.min ?? ""}"><span class="u">${unit}</span></div></div>
+        <div class="cfg2-field"><label>Safe Max</label>
+          <div class="cfg2-input"><input type="number" step="any" id="cfgF-max" value="${existing?.max ?? ""}"><span class="u">${unit}</span></div></div>
+      </div>
+      <div class="cfg2-grid-2">
+        <div class="cfg2-field"><label>Current value</label>
+          <div class="cfg2-input"><input type="number" step="any" id="cfgF-cur" value="${existing?.current ?? ""}"><span class="u">${unit}</span></div></div>
+        <div class="cfg2-field"><label>Unit</label>
+          <input type="text" id="cfgF-unit" value="${existing?.unit ?? unit}" />
+        </div>
+      </div>
+    `;
+  }
+}
+
+function updateCfgHmi() {
+  const type = $("#cfgFType").value;
+  const upId = $("#cfgFUp").value;
+  const up = (window.UNIT_PROCESSES||[]).find(u => u.id === upId);
+  const upName = up ? up.name : "GENERAL";
+  const idx = (up?.setpointIds?.length || 0) + 1;
+  if (type === "Transfer Pump") {
+    const tags = ["SOURCEMIN","SOURCEMAX","DESTMIN","DESTMAX"]
+      .map((r, i) => window.generateHmiTag(upName, "LT", idx + i, r));
+    $("#cfgFHmi").innerHTML = tags.map(t => `<div>${t}</div>`).join("");
+  } else {
+    $("#cfgFHmi").textContent = window.generateHmiTag(upName, type, idx);
+  }
+}
+
+function saveCfgModal() {
+  const type  = $("#cfgFType").value;
+  const name  = $("#cfgFName").value.trim();
+  const desc  = $("#cfgFDesc").value.trim();
+  const upId  = $("#cfgFUp").value;
+  const up    = (window.UNIT_PROCESSES||[]).find(u => u.id === upId);
+  const err   = $("#cfgFErr");
+  err.classList.add("hidden");
+  if (!name) { err.textContent = "Name is required"; err.classList.remove("hidden"); return; }
+
+  if (type === "Transfer Pump") {
+    const f = sel => parseFloat($("#cfgF-"+sel).value);
+    const v = {
+      srcStart: f("srcStart"), srcStartMin: f("srcStartMin"), srcStartMax: f("srcStartMax"),
+      srcStop:  f("srcStop"),  srcStopMin:  f("srcStopMin"),  srcStopMax:  f("srcStopMax"),
+      dstStart: f("dstStart"), dstStartMin: f("dstStartMin"), dstStartMax: f("dstStartMax"),
+      dstStop:  f("dstStop"),  dstStopMin:  f("dstStopMin"),  dstStopMax:  f("dstStopMax"),
+    };
+    const problems = [];
+    for (const k of Object.keys(v)) if (isNaN(v[k])) problems.push(`${k} required`);
+    if (!problems.length) {
+      if (v.srcStart > v.srcStop) problems.push("Source Tank: Start cannot be greater than Stop");
+      if (v.dstStart > v.dstStop) problems.push("Destination Tank: Start cannot be greater than Stop");
+      for (const role of [["srcStart","srcStartMin","srcStartMax"],["srcStop","srcStopMin","srcStopMax"],["dstStart","dstStartMin","dstStartMax"],["dstStop","dstStopMin","dstStopMax"]]) {
+        const [c, mn, mx] = role;
+        if (v[mn] > v[mx]) problems.push(`${c}: safe min > safe max`);
+        if (v[c] < v[mn] || v[c] > v[mx]) problems.push(`${c}: current outside safe range`);
+      }
+    }
+    if (problems.length) { err.textContent = problems.join(" · "); err.classList.remove("hidden"); return; }
+
+    if (cfgEditing && cfgEditing.kind === "tp") {
+      const members = (window.SETPOINTS||[]).filter(s => s.groupId === cfgEditing.groupId);
+      const apply = (role, current, min, max) => {
+        const m = members.find(x => x.subRole === role); if (!m) return;
+        m.name = `${name} · ${role==="SOURCEMIN"?"Source Tank Start":role==="SOURCEMAX"?"Source Tank Stop":role==="DESTMIN"?"Destination Tank Start":"Destination Tank Stop"} Level`;
+        m.description = desc; m.current = current; m.min = min; m.max = max; m.groupName = name;
+      };
+      apply("SOURCEMIN", v.srcStart, v.srcStartMin, v.srcStartMax);
+      apply("SOURCEMAX", v.srcStop,  v.srcStopMin,  v.srcStopMax);
+      apply("DESTMIN",   v.dstStart, v.dstStartMin, v.dstStartMax);
+      apply("DESTMAX",   v.dstStop,  v.dstStopMin,  v.dstStopMax);
+      toast(`Updated Transfer Pump · ${name}`, "ok");
+    } else {
+      const groupId = "lt-" + Date.now().toString(36);
+      const idxStart = (up?.setpointIds?.length || 0) + 1;
+      const upName = up?.name || "GENERAL";
+      const make = (role, current, min, max, idx) => ({
+        id: groupId + "-" + role.toLowerCase(),
+        type: "LT", subRole: role,
+        groupId, groupName: name, description: desc,
+        name: `${name} · ${role==="SOURCEMIN"?"Source Tank Start":role==="SOURCEMAX"?"Source Tank Stop":role==="DESTMIN"?"Destination Tank Start":"Destination Tank Stop"} Level`,
+        hmiTag: window.generateHmiTag(upName, "LT", idx, role),
+        unit: "%", current, min, max, active: true,
+        equipment: upName, targets: up ? [...(up.equipmentIds||[])] : [],
+        source: "Created · " + new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"}),
+        history: [],
+      });
+      const items = [
+        make("SOURCEMIN", v.srcStart, v.srcStartMin, v.srcStartMax, idxStart),
+        make("SOURCEMAX", v.srcStop,  v.srcStopMin,  v.srcStopMax,  idxStart+1),
+        make("DESTMIN",   v.dstStart, v.dstStartMin, v.dstStartMax, idxStart+2),
+        make("DESTMAX",   v.dstStop,  v.dstStopMin,  v.dstStopMax,  idxStart+3),
+      ];
+      window.SETPOINTS = (window.SETPOINTS||[]).concat(items);
+      if (up) { up.setpointIds = up.setpointIds || []; up.setpointIds.push(...items.map(i => i.id)); }
+      toast(`Added Transfer Pump · ${name} (4 set points)`, "ok");
+    }
+  } else {
+    const unit = $("#cfgF-unit")?.value || cfgUnitFor(type);
+    const min = parseFloat($("#cfgF-min").value);
+    const max = parseFloat($("#cfgF-max").value);
+    const cur = parseFloat($("#cfgF-cur").value);
+    const problems = [];
+    if (isNaN(min) || isNaN(max)) problems.push("Safe Min and Safe Max are required");
+    else if (max <= min) problems.push("Safe Max must be greater than Safe Min");
+    if (isNaN(cur)) problems.push("Current value is required");
+    else if (!isNaN(min) && !isNaN(max) && (cur < min || cur > max)) problems.push("Current must be within Safe Min–Max");
+    if (problems.length) { err.textContent = problems.join(" · "); err.classList.remove("hidden"); return; }
+
+    if (cfgEditing && cfgEditing.kind === "single") {
+      const sp = (window.SETPOINTS||[]).find(s => s.id === cfgEditing.spId);
+      if (sp) {
+        Object.assign(sp, { type, name, description: desc, unit, min, max, current: cur });
+        toast(`Updated · ${name}`, "ok");
+      }
+    } else {
+      const id = "sp-" + Date.now().toString(36);
+      const upName = up?.name || "GENERAL";
+      const idx = (up?.setpointIds?.length || 0) + 1;
+      const sp = {
+        id, type, name, description: desc, unit, min, max, current: cur,
+        hmiTag: window.generateHmiTag(upName, type, idx),
+        active: true, equipment: upName, targets: up ? [...(up.equipmentIds||[])] : [],
+        source: "Created · " + new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"}),
+        history: [],
+      };
+      (window.SETPOINTS||(window.SETPOINTS=[])).push(sp);
+      if (up) { up.setpointIds = up.setpointIds || []; up.setpointIds.push(sp.id); }
+      toast(`Added · ${name}`, "ok");
+    }
+  }
+  closeCfgModal();
+  renderCfgTable();
 }
 
 // =====================================================================
@@ -2433,6 +2797,16 @@ document.addEventListener("DOMContentLoaded", () => {
   // Warning override modal (shared)
   $("#scWarnCancel")?.addEventListener("click", cancelWarn);
   $("#scWarnOverride")?.addEventListener("click", overrideWarn);
+
+  // Simple Set Point Configuration
+  $("#cfgAddBtn")?.addEventListener("click", () => openCfgModal(null));
+  $("#cfgModalClose")?.addEventListener("click", closeCfgModal);
+  $("#cfgModalCancel")?.addEventListener("click", closeCfgModal);
+  $("#cfgModalSave")?.addEventListener("click", saveCfgModal);
+  $("#cfgSearch2")?.addEventListener("input", renderCfgTable);
+  $("#cfgFilterType")?.addEventListener("change", renderCfgTable);
+  $("#cfgFType")?.addEventListener("change", e => { renderCfgSchema(e.target.value, null); updateCfgHmi(); });
+  $("#cfgFUp")?.addEventListener("change", updateCfgHmi);
 
   // Studio
   $("#studioUpName")?.addEventListener("input", e => {

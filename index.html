@@ -77,6 +77,7 @@
         <option value="layout">Plant Layout</option>
         <option value="dashboard">Dashboard</option>
         <option value="studio">⚙ Studio (configure)</option>
+        <option value="cfg">Set Point Configuration</option>
       </select>
       <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2,3 L5,7 L8,3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </div>
@@ -116,6 +117,72 @@
     </div>
     <div id="dashBody" class="dash-body"></div>
   </section>
+
+  <!-- ====================== SIMPLE SET POINT CONFIGURATION (admin) ====================== -->
+  <section class="view view-cfg hidden" id="view-cfg">
+    <div class="cfg-page">
+      <div class="cfg-page-head-row">
+        <div>
+          <h2>Set Point Configuration</h2>
+          <p class="muted">Simple list of every set point in the system. Configure type, name, description and allowed range. Independent of the Studio layout builder.</p>
+        </div>
+        <button class="dp-btn primary" id="cfgAddBtn">+ Add set point</button>
+      </div>
+      <div class="cfg-toolbar2">
+        <input type="search" id="cfgSearch2" placeholder="Search by name, type or HMI tag…" />
+        <select id="cfgFilterType">
+          <option value="">All types</option>
+        </select>
+        <span class="cfg-count" id="cfgCount2">0 configured</span>
+      </div>
+      <div class="cfg-table2" id="cfgTable2"></div>
+    </div>
+  </section>
+
+  <!-- Simple Add/Edit modal (dynamic by type) -->
+  <div id="cfgModal" class="modal hidden">
+    <div class="modal-card sp-modal">
+      <div class="sp-modal-head">
+        <h2 id="cfgModalTitle">Add set point</h2>
+        <button class="sp-modal-x" id="cfgModalClose">✕</button>
+      </div>
+      <div class="sp-modal-body">
+        <div class="cfg2-field">
+          <label>Set Point Type</label>
+          <select id="cfgFType">
+            <option value="Level">Level</option>
+            <option value="DO">DO</option>
+            <option value="Differential Pressure">Differential Pressure</option>
+            <option value="pH">pH</option>
+            <option value="FRC">FRC</option>
+            <option value="ORP">ORP</option>
+            <option value="Flow">Flow</option>
+            <option value="Time">Time</option>
+            <option value="Transfer Pump">Transfer Pump Set Point</option>
+          </select>
+        </div>
+        <div class="cfg2-field">
+          <label>Set Point Name</label>
+          <input type="text" id="cfgFName" placeholder="e.g. CASS Basin 1 high level cut-in" />
+        </div>
+        <div class="cfg2-field">
+          <label>Set Point Description</label>
+          <textarea id="cfgFDesc" rows="2" placeholder="What does this set point trigger? When is it used?"></textarea>
+        </div>
+        <div class="cfg2-field">
+          <label>Linked Unit Process</label>
+          <select id="cfgFUp"></select>
+        </div>
+        <div id="cfgFSchema"></div>
+        <div class="cfg2-hmi"><span class="cfg2-hmi-label">HMI tag<small> · auto-generated</small></span><code id="cfgFHmi">—</code></div>
+        <div class="form-error hidden" id="cfgFErr"></div>
+      </div>
+      <div class="sp-modal-foot">
+        <button class="dp-btn ghost" id="cfgModalCancel">Cancel</button>
+        <button class="dp-btn primary" id="cfgModalSave">Save</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ====================== STUDIO (implementer) ====================== -->
   <section class="view view-studio hidden" id="view-studio">
