@@ -138,23 +138,24 @@
 
   <!-- Create/Edit Unit Process modal -->
   <div id="cfgUpModal" class="modal hidden">
-    <div class="modal-card sp-modal">
-      <div class="sp-modal-head">
+    <div class="modal-card cfg-modal">
+      <button class="cfg-modal-x" id="cfgUpModalClose" aria-label="Close">✕</button>
+      <div class="cfg-modal-head">
         <h2 id="cfgUpModalTitle">Create unit process</h2>
-        <button class="sp-modal-x" id="cfgUpModalClose">✕</button>
+        <p class="cfg-modal-hint">Give it a clear name. You'll add equipment and set points next.</p>
       </div>
-      <div class="sp-modal-body">
-        <div class="cfg2-field">
+      <div class="cfg-modal-body">
+        <div class="cfg-field">
           <label>Unit Process Name</label>
           <input type="text" id="cfgUpName" placeholder="e.g. SBR 1 Cycle, PSF 1 Cycle, Aeration" />
         </div>
-        <div class="cfg2-field">
-          <label>Description</label>
+        <div class="cfg-field">
+          <label>Description <span class="cfg-optional">— optional</span></label>
           <textarea id="cfgUpDesc" rows="2" placeholder="What does this unit process do?"></textarea>
         </div>
         <div class="form-error hidden" id="cfgUpErr"></div>
       </div>
-      <div class="sp-modal-foot">
+      <div class="cfg-modal-foot">
         <button class="dp-btn ghost" id="cfgUpCancel">Cancel</button>
         <button class="dp-btn primary" id="cfgUpSave">Save unit process</button>
       </div>
@@ -182,46 +183,52 @@
 
   <!-- Simple Add/Edit modal (dynamic by type) -->
   <div id="cfgModal" class="modal hidden">
-    <div class="modal-card sp-modal cfg-sp-modal">
+    <div class="modal-card cfg-modal cfg-modal-wide">
       <button class="cfg-modal-x" id="cfgModalClose" aria-label="Close">✕</button>
-      <div class="sp-modal-head cfg-sp-modal-head">
-        <div>
-          <h2 id="cfgModalTitle">Add set point</h2>
-          <div class="cfg-modal-sub" id="cfgModalSub"></div>
-        </div>
+      <div class="cfg-modal-head">
+        <h2 id="cfgModalTitle">Add set point</h2>
+        <p class="cfg-modal-hint" id="cfgModalSub"></p>
       </div>
-      <div class="sp-modal-body">
-        <div class="cfg2-field">
-          <label>Set Point Type</label>
-          <select id="cfgFType">
-            <option value="Level">Level</option>
-            <option value="DO">DO</option>
-            <option value="Differential Pressure">Differential Pressure</option>
-            <option value="pH">pH</option>
-            <option value="FRC">FRC</option>
-            <option value="ORP">ORP</option>
-            <option value="Flow">Flow</option>
-            <option value="Time">Time</option>
-            <option value="Transfer Pump">Transfer Pump Set Point</option>
-          </select>
-          <div class="cfg-type-unit-hint" id="cfgTypeUnitHint"></div>
+      <div class="cfg-modal-body">
+        <div class="cfg-row-2">
+          <div class="cfg-field">
+            <label>Set Point Type</label>
+            <select id="cfgFType">
+              <option value="Level">Level</option>
+              <option value="DO">DO</option>
+              <option value="Differential Pressure">Differential Pressure</option>
+              <option value="pH">pH</option>
+              <option value="FRC">FRC</option>
+              <option value="ORP">ORP</option>
+              <option value="Flow">Flow</option>
+              <option value="Time">Time</option>
+              <option value="Transfer Pump">Transfer Pump Set Point</option>
+            </select>
+            <div class="cfg-type-unit-hint" id="cfgTypeUnitHint"></div>
+          </div>
+          <div class="cfg-field">
+            <label>Set Point Name</label>
+            <input type="text" id="cfgFName" placeholder="e.g. CASS Basin 1 high level cut-in" />
+          </div>
         </div>
-        <div class="cfg2-field">
-          <label>Set Point Name</label>
-          <input type="text" id="cfgFName" placeholder="e.g. CASS Basin 1 high level cut-in" />
-        </div>
-        <div class="cfg2-field">
-          <label>Set Point Description</label>
-          <textarea id="cfgFDesc" rows="2" placeholder="What does this set point trigger? When is it used?"></textarea>
+        <div class="cfg-field">
+          <label>Description <span class="cfg-optional">— optional</span></label>
+          <textarea id="cfgFDesc" rows="2" placeholder="What does this set point trigger?"></textarea>
         </div>
         <input type="hidden" id="cfgFUp" />
         <div id="cfgFSchema"></div>
-        <div class="cfg2-hmi"><span class="cfg2-hmi-label">HMI tag<small> · auto-generated · the current value will be fetched from the sensor mapped to this tag</small></span><code id="cfgFHmi">—</code></div>
+        <div class="cfg-hmi">
+          <div class="cfg-hmi-row">
+            <span class="cfg-hmi-pill">HMI TAG · auto-generated</span>
+            <code id="cfgFHmi">—</code>
+          </div>
+          <p class="cfg-hmi-note">The current value will be fetched from the sensor mapped to this tag at commissioning.</p>
+        </div>
         <div class="form-error hidden" id="cfgFErr"></div>
       </div>
-      <div class="sp-modal-foot">
+      <div class="cfg-modal-foot">
         <button class="dp-btn ghost" id="cfgModalCancel">Cancel</button>
-        <button class="dp-btn primary" id="cfgModalSave">Save</button>
+        <button class="dp-btn primary" id="cfgModalSave">Save set point</button>
       </div>
     </div>
   </div>

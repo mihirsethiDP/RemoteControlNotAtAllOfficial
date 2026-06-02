@@ -1169,45 +1169,30 @@ function renderCfgSchema(type, existing) {
   if (type === "Transfer Pump") {
     const m = existing?.members || [];
     const get = (role, field) => m.find(x => x.subRole === role)?.[field];
-    host.innerHTML = `
-      <div class="cfg2-tp-block">
-        <div class="cfg2-tp-title">Source Tank · Safe range</div>
-        <div class="cfg2-tp-row">
-          <div class="cfg2-field"><label>Start · safe min</label>
-            <div class="cfg2-input"><input type="number" step="any" id="cfgF-srcStartMin" value="${get("SOURCEMIN","min") ?? 0}"><span class="u">${unit}</span></div></div>
-          <div class="cfg2-field"><label>Start · safe max</label>
-            <div class="cfg2-input"><input type="number" step="any" id="cfgF-srcStartMax" value="${get("SOURCEMIN","max") ?? 100}"><span class="u">${unit}</span></div></div>
+    const tankBlock = (label, roleStart, roleStop) => `
+      <div class="cfg-tp-block">
+        <div class="cfg-tp-title">${label}</div>
+        <div class="cfg-tp-grid">
+          <div class="cfg-tp-cell-h">Start level</div>
+          <div class="cfg-tp-cell-h">Stop level</div>
+          <div class="cfg-field"><label>Safe min</label>
+            <div class="cfg-input"><input type="number" step="any" id="cfgF-${roleStart}Min" value="${get(roleStart === 'srcStart' ? 'SOURCEMIN' : roleStart === 'srcStop' ? 'SOURCEMAX' : roleStart === 'dstStart' ? 'DESTMIN' : 'DESTMAX',"min") ?? 0}"><span class="u">${unit}</span></div></div>
+          <div class="cfg-field"><label>Safe min</label>
+            <div class="cfg-input"><input type="number" step="any" id="cfgF-${roleStop}Min" value="${get(roleStop === 'srcStart' ? 'SOURCEMIN' : roleStop === 'srcStop' ? 'SOURCEMAX' : roleStop === 'dstStart' ? 'DESTMIN' : 'DESTMAX',"min") ?? 0}"><span class="u">${unit}</span></div></div>
+          <div class="cfg-field"><label>Safe max</label>
+            <div class="cfg-input"><input type="number" step="any" id="cfgF-${roleStart}Max" value="${get(roleStart === 'srcStart' ? 'SOURCEMIN' : roleStart === 'srcStop' ? 'SOURCEMAX' : roleStart === 'dstStart' ? 'DESTMIN' : 'DESTMAX',"max") ?? 100}"><span class="u">${unit}</span></div></div>
+          <div class="cfg-field"><label>Safe max</label>
+            <div class="cfg-input"><input type="number" step="any" id="cfgF-${roleStop}Max" value="${get(roleStop === 'srcStart' ? 'SOURCEMIN' : roleStop === 'srcStop' ? 'SOURCEMAX' : roleStop === 'dstStart' ? 'DESTMIN' : 'DESTMAX',"max") ?? 100}"><span class="u">${unit}</span></div></div>
         </div>
-        <div class="cfg2-tp-row" style="margin-top:6px">
-          <div class="cfg2-field"><label>Stop · safe min</label>
-            <div class="cfg2-input"><input type="number" step="any" id="cfgF-srcStopMin" value="${get("SOURCEMAX","min") ?? 0}"><span class="u">${unit}</span></div></div>
-          <div class="cfg2-field"><label>Stop · safe max</label>
-            <div class="cfg2-input"><input type="number" step="any" id="cfgF-srcStopMax" value="${get("SOURCEMAX","max") ?? 100}"><span class="u">${unit}</span></div></div>
-        </div>
-      </div>
-      <div class="cfg2-tp-block">
-        <div class="cfg2-tp-title">Destination Tank · Safe range</div>
-        <div class="cfg2-tp-row">
-          <div class="cfg2-field"><label>Start · safe min</label>
-            <div class="cfg2-input"><input type="number" step="any" id="cfgF-dstStartMin" value="${get("DESTMIN","min") ?? 0}"><span class="u">${unit}</span></div></div>
-          <div class="cfg2-field"><label>Start · safe max</label>
-            <div class="cfg2-input"><input type="number" step="any" id="cfgF-dstStartMax" value="${get("DESTMIN","max") ?? 100}"><span class="u">${unit}</span></div></div>
-        </div>
-        <div class="cfg2-tp-row" style="margin-top:6px">
-          <div class="cfg2-field"><label>Stop · safe min</label>
-            <div class="cfg2-input"><input type="number" step="any" id="cfgF-dstStopMin" value="${get("DESTMAX","min") ?? 0}"><span class="u">${unit}</span></div></div>
-          <div class="cfg2-field"><label>Stop · safe max</label>
-            <div class="cfg2-input"><input type="number" step="any" id="cfgF-dstStopMax" value="${get("DESTMAX","max") ?? 100}"><span class="u">${unit}</span></div></div>
-        </div>
-      </div>
-    `;
+      </div>`;
+    host.innerHTML = tankBlock("Source Tank", "srcStart", "srcStop") + tankBlock("Destination Tank", "dstStart", "dstStop");
   } else {
     host.innerHTML = `
-      <div class="cfg2-grid-2">
-        <div class="cfg2-field"><label>Safe Min</label>
-          <div class="cfg2-input"><input type="number" step="any" id="cfgF-min" value="${existing?.min ?? ""}"><span class="u">${unit}</span></div></div>
-        <div class="cfg2-field"><label>Safe Max</label>
-          <div class="cfg2-input"><input type="number" step="any" id="cfgF-max" value="${existing?.max ?? ""}"><span class="u">${unit}</span></div></div>
+      <div class="cfg-row-2">
+        <div class="cfg-field"><label>Safe Min</label>
+          <div class="cfg-input"><input type="number" step="any" id="cfgF-min" value="${existing?.min ?? ""}" placeholder="0"><span class="u">${unit}</span></div></div>
+        <div class="cfg-field"><label>Safe Max</label>
+          <div class="cfg-input"><input type="number" step="any" id="cfgF-max" value="${existing?.max ?? ""}" placeholder="100"><span class="u">${unit}</span></div></div>
       </div>
     `;
   }
@@ -1222,10 +1207,19 @@ function updateCfgHmi() {
   if (type === "Transfer Pump") {
     const tags = ["SOURCEMIN","SOURCEMAX","DESTMIN","DESTMAX"]
       .map((r, i) => window.generateHmiTag(upName, "LT", idx + i, r));
-    $("#cfgFHmi").innerHTML = tags.map(t => `<div>${t}</div>`).join("");
+    $("#cfgFHmi").innerHTML = tags.map(t => `<span class="cfg-hmi-tag">${t}</span>`).join("");
   } else {
     $("#cfgFHmi").textContent = window.generateHmiTag(upName, type, idx);
   }
+}
+
+// Doherty threshold: live-update the HMI tag preview as the user types the name.
+// We don't actually need the name in the tag (auto-numbered), but keeping the
+// preview responsive (<100ms) reinforces that the tag is live-derived.
+function liveCfgFeedback() {
+  updateCfgHmi();
+  const errEl = $("#cfgFErr");
+  if (errEl && !errEl.classList.contains("hidden")) errEl.classList.add("hidden");
 }
 
 function saveCfgModal() {
@@ -3048,6 +3042,12 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#cfgSearch2")?.addEventListener("input", renderCfgUps);
   $("#cfgFType")?.addEventListener("change", e => { renderCfgSchema(e.target.value, null); updateCfgUnitHint(); updateCfgHmi(); });
   $("#cfgFUp")?.addEventListener("change", updateCfgHmi);
+  $("#cfgFName")?.addEventListener("input", liveCfgFeedback);
+  $("#cfgFDesc")?.addEventListener("input", liveCfgFeedback);
+  $("#cfgUpName")?.addEventListener("input", () => {
+    const errEl = $("#cfgUpErr");
+    if (errEl && !errEl.classList.contains("hidden")) errEl.classList.add("hidden");
+  });
 
   // Studio
   $("#studioUpName")?.addEventListener("input", e => {
