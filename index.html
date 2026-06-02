@@ -182,10 +182,13 @@
 
   <!-- Simple Add/Edit modal (dynamic by type) -->
   <div id="cfgModal" class="modal hidden">
-    <div class="modal-card sp-modal">
-      <div class="sp-modal-head">
-        <h2 id="cfgModalTitle">Add set point</h2>
-        <button class="sp-modal-x" id="cfgModalClose">✕</button>
+    <div class="modal-card sp-modal cfg-sp-modal">
+      <button class="cfg-modal-x" id="cfgModalClose" aria-label="Close">✕</button>
+      <div class="sp-modal-head cfg-sp-modal-head">
+        <div>
+          <h2 id="cfgModalTitle">Add set point</h2>
+          <div class="cfg-modal-sub" id="cfgModalSub"></div>
+        </div>
       </div>
       <div class="sp-modal-body">
         <div class="cfg2-field">
@@ -201,6 +204,7 @@
             <option value="Time">Time</option>
             <option value="Transfer Pump">Transfer Pump Set Point</option>
           </select>
+          <div class="cfg-type-unit-hint" id="cfgTypeUnitHint"></div>
         </div>
         <div class="cfg2-field">
           <label>Set Point Name</label>
@@ -210,12 +214,9 @@
           <label>Set Point Description</label>
           <textarea id="cfgFDesc" rows="2" placeholder="What does this set point trigger? When is it used?"></textarea>
         </div>
-        <div class="cfg2-field">
-          <label>Linked Unit Process</label>
-          <select id="cfgFUp"></select>
-        </div>
+        <input type="hidden" id="cfgFUp" />
         <div id="cfgFSchema"></div>
-        <div class="cfg2-hmi"><span class="cfg2-hmi-label">HMI tag<small> · auto-generated</small></span><code id="cfgFHmi">—</code></div>
+        <div class="cfg2-hmi"><span class="cfg2-hmi-label">HMI tag<small> · auto-generated · the current value will be fetched from the sensor mapped to this tag</small></span><code id="cfgFHmi">—</code></div>
         <div class="form-error hidden" id="cfgFErr"></div>
       </div>
       <div class="sp-modal-foot">

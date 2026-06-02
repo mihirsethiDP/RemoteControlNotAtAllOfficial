@@ -852,16 +852,25 @@ function renderCfgUpCard(up) {
         </div>
       </div>
       <div class="cfg-up-actions">
-        <button class="dp-btn ghost sm" data-act="edit-up">Edit</button>
-        <button class="dp-btn ghost sm danger" data-act="del-up">Delete</button>
-        <button class="cfg-up-chev" data-act="toggle" aria-label="Expand">${expanded?"▾":"▸"}</button>
+        <button class="cfg-up-iconbtn" data-act="edit-up" title="Edit unit process" aria-label="Edit">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+        </button>
+        <button class="cfg-up-iconbtn danger" data-act="del-up" title="Delete unit process" aria-label="Delete">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+        <button class="cfg-up-chev" data-act="toggle" aria-label="${expanded?'Collapse':'Expand'}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
       </div>
     </div>
     <div class="cfg-up-body">
       <div class="cfg-section">
         <div class="cfg-section-head">
           <div class="cfg-section-title">Step 2 · Equipment associated with this unit process</div>
-          <button class="dp-btn ghost sm" data-act="add-eq">${eqCount?"Edit equipment":"+ Associate equipment"}</button>
+        </div>
+        <div class="cfg-eq-autocomplete" data-up-id="${up.id}">
+          <input type="text" class="cfg-eq-input" placeholder="Type to search and add equipment…" autocomplete="off" />
+          <div class="cfg-eq-suggest hidden"></div>
         </div>
         <div class="cfg-eq-chips">${
           eqCount
@@ -869,7 +878,7 @@ function renderCfgUpCard(up) {
                 const name = DEVICES[id]?.name || id;
                 return `<span class="cfg-eq-chip">${escapeHtml(name)}<button class="chip-x" data-eq-remove="${id}" title="Remove">×</button></span>`;
               }).join("")
-            : `<div class="cfg-eq-empty">No equipment associated yet. Click <b>Associate equipment</b> to add pumps, blowers, valves, etc.</div>`
+            : `<div class="cfg-eq-empty">No equipment yet. Start typing above to associate pumps, blowers, valves, sensors, etc.</div>`
         }</div>
       </div>
       <div class="cfg-section">
@@ -893,8 +902,41 @@ function renderCfgUpCard(up) {
   });
   card.querySelector('[data-act="edit-up"]').addEventListener("click", e => { e.stopPropagation(); openCfgUpForm(up.id); });
   card.querySelector('[data-act="del-up"]').addEventListener("click", e => { e.stopPropagation(); deleteCfgUp(up.id); });
-  card.querySelector('[data-act="add-eq"]').addEventListener("click", e => { e.stopPropagation(); openCfgEqPicker(up.id); });
   card.querySelector('[data-act="add-sp"]').addEventListener("click", e => { e.stopPropagation(); openCfgModal({ kind: "new", upId: up.id }); });
+
+  // Equipment autocomplete
+  const acRoot = card.querySelector('.cfg-eq-autocomplete');
+  const acInput = acRoot.querySelector('.cfg-eq-input');
+  const acSuggest = acRoot.querySelector('.cfg-eq-suggest');
+  const renderSuggest = () => {
+    const q = acInput.value.trim().toLowerCase();
+    const taken = new Set(up.equipmentIds||[]);
+    const results = Object.keys(DEVICES)
+      .filter(id => !taken.has(id))
+      .filter(id => !q || DEVICES[id].name.toLowerCase().includes(q) || id.toLowerCase().includes(q))
+      .slice(0, 8);
+    if (!results.length) {
+      acSuggest.innerHTML = `<div class="cfg-eq-sugg-empty">${q ? `No equipment matches "${q}".` : "All equipment already associated."}</div>`;
+    } else {
+      acSuggest.innerHTML = results.map(id => {
+        const dev = DEVICES[id];
+        return `<button type="button" class="cfg-eq-sugg-item" data-add-id="${id}"><span class="cfg-eq-sugg-name">${escapeHtml(dev.name)}</span><span class="cfg-eq-sugg-meta">${dev.type||""}</span></button>`;
+      }).join("");
+      acSuggest.querySelectorAll('[data-add-id]').forEach(b => {
+        b.addEventListener("mousedown", ev => {
+          ev.preventDefault();
+          const id = b.dataset.addId;
+          up.equipmentIds = [...(up.equipmentIds||[]), id];
+          renderCfgUps();
+        });
+      });
+    }
+    acSuggest.classList.remove("hidden");
+  };
+  acInput.addEventListener("focus", e => { e.stopPropagation(); renderSuggest(); });
+  acInput.addEventListener("input", renderSuggest);
+  acInput.addEventListener("click", e => e.stopPropagation());
+  acInput.addEventListener("blur", () => setTimeout(() => acSuggest.classList.add("hidden"), 150));
 
   card.querySelectorAll('[data-eq-remove]').forEach(btn => {
     btn.addEventListener("click", e => {
@@ -935,9 +977,8 @@ function renderCfgSpRow(r) {
         <div><span class="sp-type">Transfer Pump</span></div>
         <div>
           <div class="sp-name">${escapeHtml(g.name||"")}</div>
-          <div class="sp-desc">Src ${srcMin?.current ?? "—"}–${srcMax?.current ?? "—"} % · Dst ${dstMin?.current ?? "—"}–${dstMax?.current ?? "—"} % · 4 HMI tags</div>
+          <div class="sp-desc">Src ${srcMin?.current ?? "—"}–${srcMax?.current ?? "—"} % · Dst ${dstMin?.current ?? "—"}–${dstMax?.current ?? "—"} %</div>
         </div>
-        <div class="sp-hmi">${m.map(x => `<code>${x.hmiTag}</code>`).join(" ")}</div>
         <div class="sp-range">4 levels</div>
         <div class="sp-unit">%</div>
         <div style="text-align:right;color:var(--muted)">✎</div>
@@ -951,7 +992,6 @@ function renderCfgSpRow(r) {
         <div class="sp-name">${escapeHtml(sp.name||"")}</div>
         <div class="sp-desc">${escapeHtml(sp.description||"—")}</div>
       </div>
-      <div class="sp-hmi"><code>${sp.hmiTag||"—"}</code></div>
       <div class="sp-range">${sp.min ?? "—"} – ${sp.max ?? "—"}</div>
       <div class="sp-unit">${sp.unit||"—"}</div>
       <div style="text-align:right;color:var(--muted)">✎</div>
@@ -1071,41 +1111,55 @@ let cfgEditing = null; // { kind:'single', spId } | { kind:'tp', groupId } | nul
 function openCfgModal(target) {
   cfgEditing = target || null;
   $("#cfgFErr").classList.add("hidden");
-  // Populate UP dropdown
-  const upSel = $("#cfgFUp");
-  upSel.innerHTML = `<option value="">(unlinked)</option>` +
-    (window.UNIT_PROCESSES||[]).map(u => `<option value="${u.id}">${u.name}</option>`).join("");
+  const upHidden = $("#cfgFUp");
+  let upForTitle = null;
 
   if (target && target.kind === "single") {
     const sp = (window.SETPOINTS||[]).find(s => s.id === target.spId);
     if (!sp) return;
+    upForTitle = (window.UNIT_PROCESSES||[]).find(u => u.setpointIds?.includes(sp.id)) || null;
     $("#cfgModalTitle").textContent = "Edit set point";
     $("#cfgFType").value = CFG_TYPES.find(t => t.type === sp.type) ? sp.type : "Level";
     $("#cfgFName").value = sp.name || "";
     $("#cfgFDesc").value = sp.description || "";
-    const up = (window.UNIT_PROCESSES||[]).find(u => u.setpointIds?.includes(sp.id));
-    upSel.value = up?.id || "";
+    upHidden.value = upForTitle?.id || "";
     renderCfgSchema(sp.type, sp);
   } else if (target && target.kind === "tp") {
     const members = (window.SETPOINTS||[]).filter(s => s.groupId === target.groupId);
     if (!members.length) return;
+    upForTitle = (window.UNIT_PROCESSES||[]).find(u => u.setpointIds?.includes(members[0].id)) || null;
     $("#cfgModalTitle").textContent = "Edit Transfer Pump Set Point";
     $("#cfgFType").value = "Transfer Pump";
     $("#cfgFName").value = members[0].groupName || "";
     $("#cfgFDesc").value = members[0].description || "";
-    const up = (window.UNIT_PROCESSES||[]).find(u => u.setpointIds?.includes(members[0].id));
-    upSel.value = up?.id || "";
+    upHidden.value = upForTitle?.id || "";
     renderCfgSchema("Transfer Pump", { members });
   } else {
+    upForTitle = (target && target.upId) ? (window.UNIT_PROCESSES||[]).find(u => u.id === target.upId) : null;
     $("#cfgModalTitle").textContent = "Add set point";
     $("#cfgFType").value = "Level";
     $("#cfgFName").value = "";
     $("#cfgFDesc").value = "";
-    upSel.value = (target && target.upId) ? target.upId : "";
+    upHidden.value = upForTitle?.id || "";
     renderCfgSchema("Level", null);
   }
+  const sub = $("#cfgModalSub");
+  if (sub) sub.innerHTML = upForTitle
+    ? `<span class="muted">For unit process:</span> <b>${escapeHtml(upForTitle.name)}</b>`
+    : `<span class="muted">Unlinked set point</span>`;
+  updateCfgUnitHint();
   updateCfgHmi();
   document.getElementById("cfgModal").classList.remove("hidden");
+}
+
+function updateCfgUnitHint() {
+  const type = $("#cfgFType").value;
+  const unit = cfgUnitFor(type);
+  const el = $("#cfgTypeUnitHint");
+  if (!el) return;
+  el.innerHTML = unit
+    ? `Unit: <b>${unit}</b> <span class="muted">· auto-derived from set point type</span>`
+    : "";
 }
 function closeCfgModal() { document.getElementById("cfgModal").classList.add("hidden"); cfgEditing = null; }
 
@@ -1117,18 +1171,14 @@ function renderCfgSchema(type, existing) {
     const get = (role, field) => m.find(x => x.subRole === role)?.[field];
     host.innerHTML = `
       <div class="cfg2-tp-block">
-        <div class="cfg2-tp-title">Source Tank</div>
+        <div class="cfg2-tp-title">Source Tank · Safe range</div>
         <div class="cfg2-tp-row">
-          <div class="cfg2-field"><label>Start (current)</label>
-            <div class="cfg2-input"><input type="number" step="any" id="cfgF-srcStart" value="${get("SOURCEMIN","current") ?? ""}"><span class="u">${unit}</span></div></div>
           <div class="cfg2-field"><label>Start · safe min</label>
             <div class="cfg2-input"><input type="number" step="any" id="cfgF-srcStartMin" value="${get("SOURCEMIN","min") ?? 0}"><span class="u">${unit}</span></div></div>
           <div class="cfg2-field"><label>Start · safe max</label>
             <div class="cfg2-input"><input type="number" step="any" id="cfgF-srcStartMax" value="${get("SOURCEMIN","max") ?? 100}"><span class="u">${unit}</span></div></div>
         </div>
         <div class="cfg2-tp-row" style="margin-top:6px">
-          <div class="cfg2-field"><label>Stop (current)</label>
-            <div class="cfg2-input"><input type="number" step="any" id="cfgF-srcStop" value="${get("SOURCEMAX","current") ?? ""}"><span class="u">${unit}</span></div></div>
           <div class="cfg2-field"><label>Stop · safe min</label>
             <div class="cfg2-input"><input type="number" step="any" id="cfgF-srcStopMin" value="${get("SOURCEMAX","min") ?? 0}"><span class="u">${unit}</span></div></div>
           <div class="cfg2-field"><label>Stop · safe max</label>
@@ -1136,18 +1186,14 @@ function renderCfgSchema(type, existing) {
         </div>
       </div>
       <div class="cfg2-tp-block">
-        <div class="cfg2-tp-title">Destination Tank</div>
+        <div class="cfg2-tp-title">Destination Tank · Safe range</div>
         <div class="cfg2-tp-row">
-          <div class="cfg2-field"><label>Start (current)</label>
-            <div class="cfg2-input"><input type="number" step="any" id="cfgF-dstStart" value="${get("DESTMIN","current") ?? ""}"><span class="u">${unit}</span></div></div>
           <div class="cfg2-field"><label>Start · safe min</label>
             <div class="cfg2-input"><input type="number" step="any" id="cfgF-dstStartMin" value="${get("DESTMIN","min") ?? 0}"><span class="u">${unit}</span></div></div>
           <div class="cfg2-field"><label>Start · safe max</label>
             <div class="cfg2-input"><input type="number" step="any" id="cfgF-dstStartMax" value="${get("DESTMIN","max") ?? 100}"><span class="u">${unit}</span></div></div>
         </div>
         <div class="cfg2-tp-row" style="margin-top:6px">
-          <div class="cfg2-field"><label>Stop (current)</label>
-            <div class="cfg2-input"><input type="number" step="any" id="cfgF-dstStop" value="${get("DESTMAX","current") ?? ""}"><span class="u">${unit}</span></div></div>
           <div class="cfg2-field"><label>Stop · safe min</label>
             <div class="cfg2-input"><input type="number" step="any" id="cfgF-dstStopMin" value="${get("DESTMAX","min") ?? 0}"><span class="u">${unit}</span></div></div>
           <div class="cfg2-field"><label>Stop · safe max</label>
@@ -1162,13 +1208,6 @@ function renderCfgSchema(type, existing) {
           <div class="cfg2-input"><input type="number" step="any" id="cfgF-min" value="${existing?.min ?? ""}"><span class="u">${unit}</span></div></div>
         <div class="cfg2-field"><label>Safe Max</label>
           <div class="cfg2-input"><input type="number" step="any" id="cfgF-max" value="${existing?.max ?? ""}"><span class="u">${unit}</span></div></div>
-      </div>
-      <div class="cfg2-grid-2">
-        <div class="cfg2-field"><label>Current value</label>
-          <div class="cfg2-input"><input type="number" step="any" id="cfgF-cur" value="${existing?.current ?? ""}"><span class="u">${unit}</span></div></div>
-        <div class="cfg2-field"><label>Unit</label>
-          <input type="text" id="cfgF-unit" value="${existing?.unit ?? unit}" />
-        </div>
       </div>
     `;
   }
@@ -1202,77 +1241,75 @@ function saveCfgModal() {
   if (type === "Transfer Pump") {
     const f = sel => parseFloat($("#cfgF-"+sel).value);
     const v = {
-      srcStart: f("srcStart"), srcStartMin: f("srcStartMin"), srcStartMax: f("srcStartMax"),
-      srcStop:  f("srcStop"),  srcStopMin:  f("srcStopMin"),  srcStopMax:  f("srcStopMax"),
-      dstStart: f("dstStart"), dstStartMin: f("dstStartMin"), dstStartMax: f("dstStartMax"),
-      dstStop:  f("dstStop"),  dstStopMin:  f("dstStopMin"),  dstStopMax:  f("dstStopMax"),
+      srcStartMin: f("srcStartMin"), srcStartMax: f("srcStartMax"),
+      srcStopMin:  f("srcStopMin"),  srcStopMax:  f("srcStopMax"),
+      dstStartMin: f("dstStartMin"), dstStartMax: f("dstStartMax"),
+      dstStopMin:  f("dstStopMin"),  dstStopMax:  f("dstStopMax"),
     };
     const problems = [];
     for (const k of Object.keys(v)) if (isNaN(v[k])) problems.push(`${k} required`);
     if (!problems.length) {
-      if (v.srcStart > v.srcStop) problems.push("Source Tank: Start cannot be greater than Stop");
-      if (v.dstStart > v.dstStop) problems.push("Destination Tank: Start cannot be greater than Stop");
       for (const role of [["srcStart","srcStartMin","srcStartMax"],["srcStop","srcStopMin","srcStopMax"],["dstStart","dstStartMin","dstStartMax"],["dstStop","dstStopMin","dstStopMax"]]) {
         const [c, mn, mx] = role;
-        if (v[mn] > v[mx]) problems.push(`${c}: safe min > safe max`);
-        if (v[c] < v[mn] || v[c] > v[mx]) problems.push(`${c}: current outside safe range`);
+        if (v[mn] >= v[mx]) problems.push(`${c}: safe min must be less than safe max`);
       }
     }
     if (problems.length) { err.textContent = problems.join(" · "); err.classList.remove("hidden"); return; }
+    const mid = (a, b) => (a + b) / 2;
 
     if (cfgEditing && cfgEditing.kind === "tp") {
       const members = (window.SETPOINTS||[]).filter(s => s.groupId === cfgEditing.groupId);
-      const apply = (role, current, min, max) => {
+      const apply = (role, min, max) => {
         const m = members.find(x => x.subRole === role); if (!m) return;
         m.name = `${name} · ${role==="SOURCEMIN"?"Source Tank Start":role==="SOURCEMAX"?"Source Tank Stop":role==="DESTMIN"?"Destination Tank Start":"Destination Tank Stop"} Level`;
-        m.description = desc; m.current = current; m.min = min; m.max = max; m.groupName = name;
+        m.description = desc; m.min = min; m.max = max; m.groupName = name;
+        if (m.current == null || m.current < min || m.current > max) m.current = mid(min, max);
       };
-      apply("SOURCEMIN", v.srcStart, v.srcStartMin, v.srcStartMax);
-      apply("SOURCEMAX", v.srcStop,  v.srcStopMin,  v.srcStopMax);
-      apply("DESTMIN",   v.dstStart, v.dstStartMin, v.dstStartMax);
-      apply("DESTMAX",   v.dstStop,  v.dstStopMin,  v.dstStopMax);
+      apply("SOURCEMIN", v.srcStartMin, v.srcStartMax);
+      apply("SOURCEMAX", v.srcStopMin,  v.srcStopMax);
+      apply("DESTMIN",   v.dstStartMin, v.dstStartMax);
+      apply("DESTMAX",   v.dstStopMin,  v.dstStopMax);
       toast(`Updated Transfer Pump · ${name}`, "ok");
     } else {
       const groupId = "lt-" + Date.now().toString(36);
       const idxStart = (up?.setpointIds?.length || 0) + 1;
       const upName = up?.name || "GENERAL";
-      const make = (role, current, min, max, idx) => ({
+      const make = (role, min, max, idx) => ({
         id: groupId + "-" + role.toLowerCase(),
         type: "LT", subRole: role,
         groupId, groupName: name, description: desc,
         name: `${name} · ${role==="SOURCEMIN"?"Source Tank Start":role==="SOURCEMAX"?"Source Tank Stop":role==="DESTMIN"?"Destination Tank Start":"Destination Tank Stop"} Level`,
         hmiTag: window.generateHmiTag(upName, "LT", idx, role),
-        unit: "%", current, min, max, active: true,
+        unit: "%", current: mid(min, max), min, max, active: true,
         equipment: upName, targets: up ? [...(up.equipmentIds||[])] : [],
         source: "Created · " + new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short"}),
         history: [],
       });
       const items = [
-        make("SOURCEMIN", v.srcStart, v.srcStartMin, v.srcStartMax, idxStart),
-        make("SOURCEMAX", v.srcStop,  v.srcStopMin,  v.srcStopMax,  idxStart+1),
-        make("DESTMIN",   v.dstStart, v.dstStartMin, v.dstStartMax, idxStart+2),
-        make("DESTMAX",   v.dstStop,  v.dstStopMin,  v.dstStopMax,  idxStart+3),
+        make("SOURCEMIN", v.srcStartMin, v.srcStartMax, idxStart),
+        make("SOURCEMAX", v.srcStopMin,  v.srcStopMax,  idxStart+1),
+        make("DESTMIN",   v.dstStartMin, v.dstStartMax, idxStart+2),
+        make("DESTMAX",   v.dstStopMin,  v.dstStopMax,  idxStart+3),
       ];
       window.SETPOINTS = (window.SETPOINTS||[]).concat(items);
       if (up) { up.setpointIds = up.setpointIds || []; up.setpointIds.push(...items.map(i => i.id)); }
       toast(`Added Transfer Pump · ${name} (4 set points)`, "ok");
     }
   } else {
-    const unit = $("#cfgF-unit")?.value || cfgUnitFor(type);
+    const unit = cfgUnitFor(type);
     const min = parseFloat($("#cfgF-min").value);
     const max = parseFloat($("#cfgF-max").value);
-    const cur = parseFloat($("#cfgF-cur").value);
     const problems = [];
     if (isNaN(min) || isNaN(max)) problems.push("Safe Min and Safe Max are required");
     else if (max <= min) problems.push("Safe Max must be greater than Safe Min");
-    if (isNaN(cur)) problems.push("Current value is required");
-    else if (!isNaN(min) && !isNaN(max) && (cur < min || cur > max)) problems.push("Current must be within Safe Min–Max");
     if (problems.length) { err.textContent = problems.join(" · "); err.classList.remove("hidden"); return; }
+    const cur = (min + max) / 2;
 
     if (cfgEditing && cfgEditing.kind === "single") {
       const sp = (window.SETPOINTS||[]).find(s => s.id === cfgEditing.spId);
       if (sp) {
-        Object.assign(sp, { type, name, description: desc, unit, min, max, current: cur });
+        const newCur = (sp.current != null && sp.current >= min && sp.current <= max) ? sp.current : cur;
+        Object.assign(sp, { type, name, description: desc, unit, min, max, current: newCur });
         toast(`Updated · ${name}`, "ok");
       }
     } else {
@@ -2066,7 +2103,6 @@ function renderSpdCard(sp, up) {
         </button>` : ""}
       </div>
     </div>
-    <div class="spd-hmi"><span class="lbl">HMI</span><code>${sp.hmiTag||"—"}</code></div>
     <div class="spd-readout">
       <div class="spd-readout-cell">
         <span class="lbl">CURRENT</span>
@@ -2132,11 +2168,6 @@ function renderLtGroupCard(group, up) {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
         </button>` : ""}
       </div>
-    </div>
-
-    <div class="lt-hmi-block">
-      <div class="lt-hmi-label">4 HMI TAGS · AUTO-GENERATED</div>
-      ${m.map(sp => `<div class="lt-hmi-line"><code>${sp.hmiTag}</code><span class="muted">· ${LT_ROLE_LABEL[sp.subRole]||sp.subRole}</span></div>`).join("")}
     </div>
 
     <div class="lt-readout">
@@ -3015,7 +3046,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#cfgModalCancel")?.addEventListener("click", closeCfgModal);
   $("#cfgModalSave")?.addEventListener("click", saveCfgModal);
   $("#cfgSearch2")?.addEventListener("input", renderCfgUps);
-  $("#cfgFType")?.addEventListener("change", e => { renderCfgSchema(e.target.value, null); updateCfgHmi(); });
+  $("#cfgFType")?.addEventListener("change", e => { renderCfgSchema(e.target.value, null); updateCfgUnitHint(); updateCfgHmi(); });
   $("#cfgFUp")?.addEventListener("change", updateCfgHmi);
 
   // Studio

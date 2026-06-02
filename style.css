@@ -1121,14 +1121,19 @@ body.side-drawer-open { overflow: hidden; }
 .cfg-up-desc { font-size: 11.5px; color: #cfe3ff; margin-top: 2px; }
 .cfg-up-counts { display: flex; gap: 12px; font-size: 11px; color: #cfe3ff; }
 .cfg-up-counts b { color: #fff; font-family: ui-monospace, monospace; }
-.cfg-up-actions { display: flex; gap: 4px; }
-.cfg-up-actions button {
-  width: 30px; height: 30px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.1); color: #fff;
-  border-radius: 5px; cursor: pointer; transition: .12s;
+.cfg-up-actions { display: flex; gap: 6px; align-items: center; }
+.cfg-up-iconbtn, .cfg-up-chev {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px;
+  border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.1); color: #fff;
+  border-radius: 6px; cursor: pointer; transition: background .12s, transform .25s ease;
 }
-.cfg-up-actions button:hover { background: rgba(255,255,255,.2); }
-.cfg-up-chev { color: #fff; transition: transform .2s; }
-.cfg-up-card.expanded .cfg-up-chev { transform: rotate(180deg); }
+.cfg-up-iconbtn:hover { background: rgba(255,255,255,.2); }
+.cfg-up-iconbtn.danger:hover { background: rgba(239,68,68,.35); border-color: rgba(239,68,68,.6); }
+/* Chevron: collapsed = pointing right (rotated -90°), expanded = pointing down (no rotation) */
+.cfg-up-chev { transform: rotate(-90deg); }
+.cfg-up-card.expanded .cfg-up-chev { transform: rotate(0deg); }
+.cfg-up-chev:hover { background: rgba(255,255,255,.2); }
 
 .cfg-up-body { max-height: 0; overflow: hidden; transition: max-height .25s ease, padding .25s ease; padding: 0 18px; }
 .cfg-up-card.expanded .cfg-up-body { max-height: 4000px; padding: 16px 18px; }
@@ -1885,3 +1890,56 @@ body.side-drawer-open { overflow: hidden; }
 .mode-pill.sm  { font-size: 9.5px; padding: 1.5px 6px; }
 .mode-pill.local { background: #eef2f7; color: var(--text-2); }
 .mode-pill.remote { background: #ece4ff; color: #5a3fbe; }
+
+/* ============ Cfg empty state ============ */
+.cfg-empty {
+  border: 1px dashed var(--line); border-radius: 10px; padding: 36px 24px;
+  text-align: center; background: var(--surface);
+}
+.cfg-empty-title { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.cfg-empty-sub { font-size: 12.5px; color: var(--muted); margin-bottom: 16px; max-width: 520px; margin-left: auto; margin-right: auto; line-height: 1.5; }
+
+/* ============ Equipment autocomplete (in UP card) ============ */
+.cfg-eq-autocomplete { position: relative; margin: 4px 0 6px; }
+.cfg-eq-input {
+  width: 100%; padding: 9px 12px;
+  border: 1px solid var(--line); border-radius: 6px; background: #fff;
+  font-size: 13px; font-family: inherit; color: var(--text);
+}
+.cfg-eq-input:focus {
+  outline: none; border-color: var(--primary-2);
+  box-shadow: 0 0 0 3px rgba(42,108,240,.12);
+}
+.cfg-eq-suggest {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 50;
+  background: #fff; border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.08); max-height: 260px; overflow: auto;
+  padding: 4px;
+}
+.cfg-eq-suggest.hidden { display: none; }
+.cfg-eq-sugg-item {
+  display: flex; justify-content: space-between; align-items: center;
+  width: 100%; padding: 8px 10px; border: 0; background: transparent;
+  border-radius: 5px; cursor: pointer; font-family: inherit; text-align: left;
+}
+.cfg-eq-sugg-item:hover { background: #eef2f7; }
+.cfg-eq-sugg-name { font-size: 12.5px; color: var(--text); font-weight: 600; }
+.cfg-eq-sugg-meta { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.cfg-eq-sugg-empty { padding: 14px; text-align: center; font-size: 12px; color: var(--muted); }
+
+/* ============ Cfg set-point modal — top-right X ============ */
+.cfg-sp-modal { position: relative; }
+.cfg-modal-x {
+  position: absolute; top: 12px; right: 12px;
+  width: 32px; height: 32px;
+  border: 1px solid var(--line); background: #fff; color: var(--muted);
+  border-radius: 6px; cursor: pointer; font-size: 15px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  z-index: 5; transition: .12s;
+}
+.cfg-modal-x:hover { background: var(--surface-2); color: var(--bad); border-color: var(--bad); }
+.cfg-sp-modal-head { padding-right: 56px; }
+.cfg-modal-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.cfg-modal-sub b { color: var(--text); font-weight: 700; }
+.cfg-type-unit-hint { font-size: 11px; color: var(--text-2); margin-top: 4px; padding-left: 2px; }
+.cfg-type-unit-hint b { color: var(--primary-2); font-family: ui-monospace, monospace; }
