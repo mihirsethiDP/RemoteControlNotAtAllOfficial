@@ -753,7 +753,7 @@ function cfgUnitFor(type) {
 const cfgExpandedUps = new Set();
 let cfgFirstRender = true;
 
-function renderCfgUps() {
+function renderCfgUps(hostOverride) {
   const search = ($("#cfgSearch2")?.value || "").toLowerCase();
   const ups = window.UNIT_PROCESSES || [];
   const allSps = window.SETPOINTS || [];
@@ -772,9 +772,13 @@ function renderCfgUps() {
   const countEl = $("#cfgCount2");
   if (countEl) countEl.textContent = `${ups.length} unit process${ups.length===1?"":"es"} · ${totalSps} set point${totalSps===1?"":"s"}`;
 
-  const host = $("#cfgUpStack");
-  if (!host) return;
-  host.innerHTML = "";
+  // Render into every cfg-up-stack on the page (configuration screen AND
+  // the configuration-mode drawer, when both are mounted)
+  const hosts = hostOverride
+    ? [hostOverride]
+    : Array.from(document.querySelectorAll(".cfg-up-stack"));
+  if (!hosts.length) return;
+  hosts.forEach(h => { h.innerHTML = ""; });
 
   // Filter UPs by search
   const filtered = ups.filter(up => {
@@ -791,26 +795,32 @@ function renderCfgUps() {
   }
 
   if (!ups.length) {
-    const empty = document.createElement("div");
-    empty.className = "cfg-empty";
-    empty.innerHTML = `
-      <div class="cfg-empty-title">No unit processes yet</div>
-      <div class="cfg-empty-sub">Start by creating a unit process — e.g. <i>SBR 1 Cycle</i>, <i>Aeration</i>, or <i>PSF 1 Cycle</i>. Then associate the equipment that participates in it and add the set points that drive it.</div>
-      <button class="dp-btn primary" id="cfgEmptyCreate">+ Create your first unit process</button>
-    `;
-    host.appendChild(empty);
-    document.getElementById("cfgEmptyCreate")?.addEventListener("click", () => openCfgUpForm(null));
+    hosts.forEach(host => {
+      const empty = document.createElement("div");
+      empty.className = "cfg-empty";
+      empty.innerHTML = `
+        <div class="cfg-empty-title">No unit processes yet</div>
+        <div class="cfg-empty-sub">Start by creating a unit process — e.g. <i>SBR 1 Cycle</i>, <i>Aeration</i>, or <i>PSF 1 Cycle</i>. Then associate the equipment that participates in it and add the set points that drive it.</div>
+        <button class="dp-btn primary cfg-empty-create">+ Create your first unit process</button>
+      `;
+      host.appendChild(empty);
+      empty.querySelector(".cfg-empty-create").addEventListener("click", () => openCfgUpForm(null));
+    });
     return;
   }
   if (!filtered.length) {
-    const empty = document.createElement("div");
-    empty.className = "cfg-empty";
-    empty.innerHTML = `<div class="cfg-empty-sub">No unit processes match "${search}".</div>`;
-    host.appendChild(empty);
+    hosts.forEach(host => {
+      const empty = document.createElement("div");
+      empty.className = "cfg-empty";
+      empty.innerHTML = `<div class="cfg-empty-sub">No unit processes match "${search}".</div>`;
+      host.appendChild(empty);
+    });
     return;
   }
 
-  for (const up of filtered) host.appendChild(renderCfgUpCard(up));
+  hosts.forEach(host => {
+    for (const up of filtered) host.appendChild(renderCfgUpCard(up));
+  });
 }
 
 function renderCfgUpCard(up) {
@@ -1960,6 +1970,14 @@ function renderSpDrawer() {
   $("#spDrawerCount").textContent = ups.length;
   if ($("#spCount")) $("#spCount").textContent = allSps.length;
 
+  // Configuration mode → render the redesigned UP-first stack instead of the
+  // client cards. Client mode keeps its existing layout untouched.
+  if (configMode) {
+    renderSpDrawerConfig(body);
+    return;
+  }
+  body.classList.remove("config-mode-body");
+
   const search = (spDrawerFilters.search || "").toLowerCase();
   const filteredUps = ups.filter(up => {
     if (!search) return true;
@@ -1976,16 +1994,12 @@ function renderSpDrawer() {
   }
   for (const up of filteredUps) body.appendChild(renderUpCard(up));
 
-  // Config mode footer: + Create unit process (opens the redesigned cfgUpModal)
+  // Config mode footer: + Add unit process (not implemented; placeholder note)
   if (configMode) {
     const foot = document.createElement("div");
     foot.className = "up-config-foot";
-    foot.innerHTML = `
-      <button class="dp-btn primary sm" id="drawerAddUpBtn">+ Create unit process</button>
-      <span class="muted" style="font-size:11.5px;margin-top:8px;display:block">Or edit equipment &amp; set points inside any unit process card above.</span>
-    `;
+    foot.innerHTML = `<span>Unit processes are detected automatically by the platform algorithm. Edit equipment & set points per unit process inside each card.</span>`;
     body.appendChild(foot);
-    foot.querySelector("#drawerAddUpBtn")?.addEventListener("click", () => openCfgUpForm(null));
   }
 }
 
@@ -2141,15 +2155,7 @@ function renderSpdCard(sp, up) {
     </div>
     <div class="spd-expand"></div>
   `;
-  card.querySelector("[data-spd-edit]")?.addEventListener("click", e => {
-    e.stopPropagation();
-    if (configMode) {
-      cfgInvokedFromDrawer = { upId: up.id };
-      openCfgModal({ kind: "single", spId: sp.id });
-    } else {
-      toggleSpdCard(card, sp);
-    }
-  });
+  card.querySelector("[data-spd-edit]")?.addEventListener("click", e => { e.stopPropagation(); toggleSpdCard(card, sp); });
   card.querySelector("[data-sp-notify]")?.addEventListener("click", e => { e.stopPropagation(); openNotifyPopover(sp); });
   card.querySelector("[data-sp-delete]")?.addEventListener("click", e => { e.stopPropagation(); deleteSpFromUp(sp, up); });
   return card;
@@ -2219,15 +2225,7 @@ function renderLtGroupCard(group, up) {
     </div>
     <div class="spd-expand"></div>
   `;
-  card.querySelector("[data-lt-edit]")?.addEventListener("click", e => {
-    e.stopPropagation();
-    if (configMode) {
-      cfgInvokedFromDrawer = { upId: up.id };
-      openCfgModal({ kind: "tp", groupId: group.groupId });
-    } else {
-      toggleLtGroupCard(card, group);
-    }
-  });
+  card.querySelector("[data-lt-edit]")?.addEventListener("click", e => { e.stopPropagation(); toggleLtGroupCard(card, group); });
   card.querySelector("[data-lt-notify]")?.addEventListener("click", e => { e.stopPropagation(); openNotifyPopover(m[0]); });
   card.querySelector("[data-lt-delete]")?.addEventListener("click", e => { e.stopPropagation(); deleteLtGroup(group, up); });
   return card;
@@ -2585,62 +2583,30 @@ function saveNotifyPopover() {
 // Add equipment to a unit process
 // =====================================================================
 function openAddEquipmentPopover(card, up) {
-  // Inline autocomplete strip — same UX as Set Point Configuration page
+  // Inline picker — append a small popover inside the card
   const existing = card.querySelector(".up-eq-picker");
   if (existing) { existing.remove(); return; }
   const popover = document.createElement("div");
-  popover.className = "up-eq-picker cfg-eq-autocomplete";
+  popover.className = "up-eq-picker";
+  const available = Object.keys(DEVICES).filter(id => !up.equipmentIds.includes(id));
   popover.innerHTML = `
-    <input type="text" class="cfg-eq-input" placeholder="Type to search equipment…" autocomplete="off" />
-    <div class="cfg-eq-suggest"></div>
+    <div class="up-eq-picker-head">Add equipment to ${up.name}</div>
+    <div class="up-eq-picker-list">
+      ${available.length ? available.map(id => `<button class="up-eq-pick" data-id="${id}">${DEVICES[id].name}</button>`).join("") : '<div class="up-empty" style="margin:8px 0">All equipment already added.</div>'}
+    </div>
   `;
   card.querySelector(".up-equip").after(popover);
-  const input = popover.querySelector(".cfg-eq-input");
-  const list  = popover.querySelector(".cfg-eq-suggest");
-
-  const render = () => {
-    const q = input.value.trim().toLowerCase();
-    const taken = new Set(up.equipmentIds||[]);
-    const results = Object.keys(DEVICES)
-      .filter(id => !taken.has(id))
-      .filter(id => !q || DEVICES[id].name.toLowerCase().includes(q) || id.toLowerCase().includes(q))
-      .slice(0, 8);
-    if (!results.length) {
-      list.innerHTML = `<div class="cfg-eq-sugg-empty">${q ? `No equipment matches "${q}".` : "All equipment already added."}</div>`;
-    } else {
-      list.innerHTML = results.map(id => {
-        const dev = DEVICES[id];
-        return `<button type="button" class="cfg-eq-sugg-item" data-add-id="${id}">
-          <span class="cfg-eq-sugg-name">${dev.name}</span>
-          <span class="cfg-eq-sugg-meta">${dev.type||""}</span>
-        </button>`;
-      }).join("");
-      list.querySelectorAll('[data-add-id]').forEach(b => {
-        b.addEventListener("mousedown", ev => {
-          ev.preventDefault();
-          up.equipmentIds.push(b.dataset.addId);
-          populateUpExpansion(card, up);
-          card.querySelector(".up-sub").innerHTML = `<b>${up.equipmentIds.length}</b> equipment · <b>${up.setpointIds.length}</b> set point${up.setpointIds.length===1?"":"s"}`;
-        });
-      });
-    }
-  };
-  input.addEventListener("input", render);
-  input.addEventListener("focus", render);
-  render();
-  setTimeout(() => input.focus(), 50);
+  popover.querySelectorAll(".up-eq-pick").forEach(b => b.addEventListener("click", () => {
+    up.equipmentIds.push(b.dataset.id);
+    populateUpExpansion(card, up);
+    card.querySelector(".up-sub").innerHTML = `<b>${up.equipmentIds.length}</b> equipment · <b>${up.setpointIds.length}</b> set point${up.setpointIds.length===1?"":"s"}`;
+  }));
 }
 
 // =====================================================================
 // Add set point to a unit process — inline form with type-specific fields
 // =====================================================================
 function openAddSetpointForm(card, up) {
-  // Use the redesigned cfgModal — same UI as the Set Point Configuration page.
-  // Mark that the drawer is the source so we can re-render it after save.
-  cfgInvokedFromDrawer = { upId: up.id, cardEl: card };
-  openCfgModal({ kind: "new", upId: up.id });
-  return;
-  // (Legacy inline form below kept for reference only — never reached.)
   const existing = card.querySelector(".up-add-sp-form");
   if (existing) { existing.remove(); return; }
   const form = document.createElement("div");
@@ -2844,17 +2810,37 @@ function saveNewSetpoint(form, up, card) {
 // =====================================================================
 // Config mode toggle
 // =====================================================================
-function toggleConfigMode() {
-  configMode = !configMode;
+function setConfigMode(on) {
+  configMode = !!on;
   document.body.classList.toggle("config-mode", configMode);
   document.getElementById("configBanner")?.classList.toggle("hidden", !configMode);
-  const btn = document.getElementById("configToggle");
-  if (btn) {
-    btn.setAttribute("aria-pressed", configMode ? "true" : "false");
-    btn.querySelector(".mode-label").textContent = configMode ? "Configuration mode" : "Client view";
+
+  // Update the segmented toggle pill on Plant Layout
+  const client = document.getElementById("modeClient");
+  const config = document.getElementById("modeConfig");
+  if (client && config) {
+    client.classList.toggle("active", !configMode);
+    config.classList.toggle("active", configMode);
+    client.setAttribute("aria-selected", configMode ? "false" : "true");
+    config.setAttribute("aria-selected", configMode ? "true" : "false");
   }
   // Re-render drawer with config affordances
   renderSpDrawer();
+}
+function renderSpDrawerConfig(body) {
+  body.classList.add("config-mode-body");
+  body.innerHTML = `
+    <div class="cfg-drawer-cta">
+      <button class="dp-btn primary" id="drawerAddUpBtn">+ Create unit process</button>
+    </div>
+    <div class="cfg-up-stack" id="cfgUpStackDrawer"></div>
+  `;
+  body.querySelector("#drawerAddUpBtn").addEventListener("click", () => openCfgUpForm(null));
+  cfgFirstRender = true;
+  renderCfgUps(body.querySelector("#cfgUpStackDrawer"));
+}
+
+function toggleConfigMode() { setConfigMode(!configMode);
 }
 
 // Warning popup — value outside safe range
@@ -3089,6 +3075,8 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#closeSetPoints")?.addEventListener("click", closeSetPointsDrawer);
   $("#spDrawerSearch")?.addEventListener("input", e => { spDrawerFilters.search = e.target.value.toLowerCase(); renderSpDrawer(); });
   $("#configToggle")?.addEventListener("click", toggleConfigMode);
+  $("#modeClient")?.addEventListener("click", () => setConfigMode(false));
+  $("#modeConfig")?.addEventListener("click", () => setConfigMode(true));
   $("#notifyClose")?.addEventListener("click", closeNotifyPopover);
   $("#notifyCancel")?.addEventListener("click", closeNotifyPopover);
   $("#notifySave")?.addEventListener("click", saveNotifyPopover);
