@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Set-Point Configuration · Adani Mumbai</title>
+<link rel="stylesheet" href="../style.css" />
+<link rel="stylesheet" href="configuration.css" />
+</head>
+<body>
+
+<header class="dp-topnav">
+  <div class="dp-topnav-left">
+    <button class="dp-burger" aria-label="Menu">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+    <div class="dp-logo">
+      <svg class="dp-logo-mark" width="34" height="34" viewBox="0 0 40 40">
+        <path d="M20 4 C12 14, 6 22, 6 28 a14 14 0 0 0 28 0 c0 -6 -6 -14 -14 -24z" fill="#1e6dd9"/>
+      </svg>
+      <div class="dp-logo-text"><div class="t1">Digital</div><div class="t2">Paani</div></div>
+    </div>
+  </div>
+  <div class="dp-topnav-right">
+    <div class="dp-user"><span class="dp-user-icon">⚙</span><span class="dp-user-name">Set-Point Admin</span></div>
+  </div>
+</header>
+
+<nav class="dp-breadcrumb">
+  <a href="../">Adani Mumbai</a>
+  <span class="sep">›</span>
+  <a href="#">Configuration</a>
+  <span class="sep">›</span>
+  <a href="#" class="current">Set Points</a>
+</nav>
+
+<div class="dp-page-strip">
+  <div class="dp-page-title">
+    <h1>Set-Point Configuration</h1>
+  </div>
+  <div class="dp-page-actions">
+    <a class="dp-btn ghost" href="../">← Back to plant</a>
+    <button class="dp-btn primary" id="addSpBtn">+ Add set point</button>
+  </div>
+</div>
+
+<main class="cfg-main">
+  <div class="cfg-info">
+    <div class="cfg-info-icon">ℹ</div>
+    <div>
+      <div class="cfg-info-title">Set-point configuration</div>
+      <div class="cfg-info-body">
+        Add and link set points to equipment. The <b>HMI Set Point Tag</b> is the PLC address the value writes to —
+        it gets overwritten when an operator changes the set point from the <a href="../">plant view</a>.
+        PLC automation logic is not modified here.
+      </div>
+    </div>
+  </div>
+
+  <div class="cfg-toolbar-full">
+    <input type="search" id="cfgSearch" placeholder="Search by name, equipment, HMI tag…" />
+    <select id="cfgFilter">
+      <option value="">All types</option>
+      <option>DO</option><option>PT</option><option>LT</option>
+      <option>Flow</option><option>Switchover Time</option>
+    </select>
+    <span class="cfg-count" id="cfgCount">0 configured</span>
+  </div>
+
+  <div class="cfg-table" id="cfgTable"></div>
+</main>
+
+<!-- ADD / EDIT SET POINT MODAL (compact) -->
+<div id="spModal" class="modal hidden">
+  <div class="modal-card sp-modal">
+    <div class="sp-modal-head">
+      <h2 id="spModalTitle">Add set point</h2>
+      <button class="sp-modal-x" id="spModalClose" aria-label="Close">✕</button>
+    </div>
+    <div class="sp-modal-body">
+      <div class="cfg-grid-2">
+        <div class="cfg-field">
+          <label>Type</label>
+          <select id="mType">
+            <option>DO</option>
+            <option>PT</option>
+            <option>LT</option>
+            <option>Flow</option>
+            <option>Switchover Time</option>
+          </select>
+        </div>
+        <div class="cfg-field">
+          <label>Unit</label>
+          <div class="cfg-unit-display" id="mUnitDisplay">—</div>
+        </div>
+      </div>
+
+      <div class="cfg-field">
+        <label>Set point name</label>
+        <input type="text" id="mName" placeholder="e.g. CASS Basin 1 high level cut-in" />
+      </div>
+
+      <div class="cfg-field">
+        <label>HMI Set Point Tag</label>
+        <input type="text" id="mHmiTag" placeholder="e.g. LIT_201.LEVEL_HIGH_SP" />
+      </div>
+
+      <div id="mSchemaFields"></div>
+
+      <div class="cfg-field">
+        <label>Linked equipment <span class="cfg-help" id="mEqCount">0 selected</span></label>
+        <div class="ms-dropdown" id="msEquipment">
+          <button type="button" class="ms-trigger" id="msTrigger" aria-haspopup="listbox" aria-expanded="false">
+            <span class="ms-trigger-text" id="msTriggerText">Select equipment…</span>
+            <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2,3 L5,7 L8,3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="ms-menu hidden" id="msMenu" role="listbox">
+            <div class="ms-menu-search">
+              <input type="search" id="msMenuSearch" placeholder="Filter equipment…" />
+            </div>
+            <div class="ms-menu-actions">
+              <button type="button" id="msSelectAll">Select all</button>
+              <button type="button" id="msClearAll">Clear</button>
+            </div>
+            <div class="ms-menu-list" id="msMenuList"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cfg-toggle-row">
+        <span>Enable this set point</span>
+        <label class="switch big"><input type="checkbox" id="mActive" checked><span class="slider"></span></label>
+      </div>
+
+      <!-- HISTORY -->
+      <div class="sp-history hidden" id="spHistory">
+        <div class="sp-history-head">Edit history</div>
+        <div class="sp-history-list" id="spHistoryList"></div>
+      </div>
+    </div>
+    <div class="sp-modal-foot">
+      <button class="dp-btn ghost" id="spModalCancel">Cancel</button>
+      <button class="dp-btn primary" id="spModalSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="../assets/setpoints.js"></script>
+<script src="configuration.js"></script>
+</body>
+</html>

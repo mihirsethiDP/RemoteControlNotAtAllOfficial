@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Adani Mumbai · Remote Control</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ====================== TOP NAV ====================== -->
+<header class="dp-topnav">
+  <div class="dp-topnav-left">
+    <button class="dp-burger" aria-label="Menu">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+    <div class="dp-logo">
+      <svg class="dp-logo-mark" width="34" height="34" viewBox="0 0 40 40">
+        <path d="M20 4 C12 14, 6 22, 6 28 a14 14 0 0 0 28 0 c0 -6 -6 -14 -14 -24z" fill="#1e6dd9"/>
+        <path d="M20 4 C12 14, 6 22, 6 28 a14 14 0 0 0 28 0 c0 -6 -6 -14 -14 -24z" fill="none" stroke="#3d8eff" stroke-width="1"/>
+      </svg>
+      <div class="dp-logo-text">
+        <div class="t1">Digital</div>
+        <div class="t2">Paani</div>
+      </div>
+    </div>
+  </div>
+  <div class="dp-topnav-right">
+    <button class="dp-icon-btn" aria-label="Notifications">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+      <span class="dp-badge">60</span>
+    </button>
+    <button class="dp-icon-btn" aria-label="Messages">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+      <span class="dp-badge red">99+</span>
+    </button>
+    <div class="dp-user">
+      <span class="dp-user-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></svg>
+      </span>
+      <span class="dp-user-name">Satyadev Singh</span>
+    </div>
+  </div>
+</header>
+
+<!-- ====================== BREADCRUMB ====================== -->
+<nav class="dp-breadcrumb">
+  <a href="#">Adani Mumbai</a>
+  <span class="sep">›</span>
+  <a href="#">Adani Mumbai</a>
+</nav>
+
+<!-- ====================== PAGE HEADER STRIP ====================== -->
+<div class="dp-page-strip">
+  <div class="dp-page-title">
+    <h1>Adani Mumbai</h1>
+    <span class="live-pill"><span class="dot"></span> LIVE</span>
+  </div>
+  <div class="dp-page-actions">
+    <div class="dp-datetime">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      <span id="hdrDate">May 26, 2026</span>
+      <span class="sep">|</span>
+      <span id="hdrTime">04:18 PM</span>
+    </div>
+    <button class="dp-play" aria-label="Play">▶</button>
+    <button class="dp-group-btn" id="openGroupControl">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9" stroke-dasharray="2 4"/></svg>
+      Group Control
+    </button>
+    <button class="dp-group-btn alt" id="openSetPoints">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Unit Processes
+    </button>
+    <div class="dp-page-select">
+      <select id="pageSelect">
+        <option value="layout">Plant Layout</option>
+        <option value="dashboard">Dashboard</option>
+        <option value="studio">⚙ Studio (configure)</option>
+        <option value="cfg">Set Point Configuration</option>
+      </select>
+      <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2,3 L5,7 L8,3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+  </div>
+</div>
+
+<!-- ====================== MAIN VIEWS ====================== -->
+<main class="dp-main" id="dpMain">
+  <!-- Plant Layout view -->
+  <section class="view view-layout" id="view-layout">
+    <div class="scada-wrap" id="scadaWrap">
+      <!-- Client ↔ Configuration mode toggle -->
+      <div class="layout-mode-toggle" id="layoutModeToggle" role="tablist" aria-label="View mode">
+        <button class="lm-opt active" id="modeClient"  role="tab" aria-selected="true">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          Client view
+        </button>
+        <button class="lm-opt"        id="modeConfig"  role="tab" aria-selected="false">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Configuration mode
+        </button>
+      </div>
+      <div id="layoutHost" class="layout-host"></div>
+      <div class="zoom-controls" aria-label="Layout zoom controls">
+        <button class="zbtn" id="zoomIn"  title="Zoom in">＋</button>
+        <button class="zbtn" id="zoomOut" title="Zoom out">−</button>
+        <button class="zbtn wide" id="zoomFit" title="Fit / reset">FIT</button>
+        <span class="zoom-level" id="zoomLevel">100%</span>
+      </div>
+      <div class="tank-drawer hidden" data-viz-internals="BASIN1" id="vizDrawer1"></div>
+      <div class="tank-drawer hidden" data-viz-internals="BASIN2" id="vizDrawer2"></div>
+    </div>
+  </section>
+
+  <!-- ====================== DASHBOARD (operator, full-screen) ====================== -->
+  <section class="view view-dashboard hidden" id="view-dashboard">
+    <div class="dash-head">
+      <div>
+        <h2>Operator Dashboard</h2>
+        <p class="muted">Configured by your implementation team. Click <b>Edit</b> on any set point to override its value.</p>
+      </div>
+      <div class="dash-head-right">
+        <span class="dash-version">Layout v<b id="dashVersion">1</b> · <span id="dashVersionDate">—</span></span>
+        <select id="dashFilter" class="dp-page-select-inline">
+          <option value="">All unit processes</option>
+        </select>
+      </div>
+    </div>
+    <div id="dashBody" class="dash-body"></div>
+  </section>
+
+  <!-- ====================== SIMPLE SET POINT CONFIGURATION (admin) ====================== -->
+  <section class="view view-cfg hidden" id="view-cfg">
+    <div class="cfg-page">
+      <div class="cfg-page-head-row">
+        <div>
+          <h2>Set Point Configuration</h2>
+          <p class="muted">Step 1 — create a unit process · Step 2 — associate equipment · Step 3 — add set points to it. Independent of the Studio layout builder.</p>
+        </div>
+        <button class="dp-btn primary" id="cfgAddUpBtn">+ Create unit process</button>
+      </div>
+      <div class="cfg-toolbar2">
+        <input type="search" id="cfgSearch2" placeholder="Search by unit process, set point name or HMI tag…" />
+        <span class="cfg-count" id="cfgCount2">0 unit processes · 0 set points</span>
+      </div>
+      <div class="cfg-up-stack" id="cfgUpStack"></div>
+    </div>
+  </section>
+
+  <!-- Create/Edit Unit Process modal -->
+  <div id="cfgUpModal" class="modal hidden">
+    <div class="modal-card cfg-modal">
+      <button class="cfg-modal-x" id="cfgUpModalClose" aria-label="Close">✕</button>
+      <div class="cfg-modal-head">
+        <h2 id="cfgUpModalTitle">Create unit process</h2>
+        <p class="cfg-modal-hint">Give it a clear name. You'll add equipment and set points next.</p>
+      </div>
+      <div class="cfg-modal-body">
+        <div class="cfg-field">
+          <label>Unit Process Name</label>
+          <input type="text" id="cfgUpName" placeholder="e.g. SBR 1 Cycle, PSF 1 Cycle, Aeration" />
+        </div>
+        <div class="cfg-field">
+          <label>Description <span class="cfg-optional">— optional</span></label>
+          <textarea id="cfgUpDesc" rows="2" placeholder="What does this unit process do?"></textarea>
+        </div>
+        <div class="form-error hidden" id="cfgUpErr"></div>
+      </div>
+      <div class="cfg-modal-foot">
+        <button class="dp-btn ghost" id="cfgUpCancel">Cancel</button>
+        <button class="dp-btn primary" id="cfgUpSave">Save unit process</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Equipment picker modal (shared) -->
+  <div id="cfgEqModal" class="modal hidden">
+    <div class="modal-card sp-modal">
+      <div class="sp-modal-head">
+        <h2>Associate equipment</h2>
+        <button class="sp-modal-x" id="cfgEqClose">✕</button>
+      </div>
+      <div class="sp-modal-body">
+        <p class="muted" id="cfgEqSubtitle">Select all equipment that participates in this unit process.</p>
+        <input type="search" id="cfgEqSearch" placeholder="Filter equipment…" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:5px;margin-bottom:10px"/>
+        <div class="ms-menu-list" id="cfgEqList" style="max-height:380px;overflow:auto"></div>
+      </div>
+      <div class="sp-modal-foot">
+        <button class="dp-btn ghost" id="cfgEqCancel">Cancel</button>
+        <button class="dp-btn primary" id="cfgEqSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Simple Add/Edit modal (dynamic by type) -->
+  <div id="cfgModal" class="modal hidden">
+    <div class="modal-card cfg-modal cfg-modal-wide">
+      <button class="cfg-modal-x" id="cfgModalClose" aria-label="Close">✕</button>
+      <div class="cfg-modal-head">
+        <h2 id="cfgModalTitle">Add set point</h2>
+        <p class="cfg-modal-hint" id="cfgModalSub"></p>
+      </div>
+      <div class="cfg-modal-body">
+        <div class="cfg-row-2">
+          <div class="cfg-field">
+            <label>Set Point Type</label>
+            <select id="cfgFType">
+              <option value="Level">Level</option>
+              <option value="DO">DO</option>
+              <option value="Differential Pressure">Differential Pressure</option>
+              <option value="pH">pH</option>
+              <option value="FRC">FRC</option>
+              <option value="ORP">ORP</option>
+              <option value="Flow">Flow</option>
+              <option value="Time">Time</option>
+              <option value="Transfer Pump">Transfer Pump Set Point</option>
+            </select>
+            <div class="cfg-type-unit-hint" id="cfgTypeUnitHint"></div>
+          </div>
+          <div class="cfg-field">
+            <label>Set Point Name</label>
+            <input type="text" id="cfgFName" placeholder="e.g. CASS Basin 1 high level cut-in" />
+          </div>
+        </div>
+        <div class="cfg-field">
+          <label>Description <span class="cfg-optional">— optional</span></label>
+          <textarea id="cfgFDesc" rows="2" placeholder="What does this set point trigger?"></textarea>
+        </div>
+        <input type="hidden" id="cfgFUp" />
+        <div id="cfgFSchema"></div>
+        <div class="cfg-hmi">
+          <div class="cfg-hmi-row">
+            <span class="cfg-hmi-pill">HMI TAG · auto-generated</span>
+            <code id="cfgFHmi">—</code>
+          </div>
+          <p class="cfg-hmi-note">The current value will be fetched from the sensor mapped to this tag at commissioning.</p>
+        </div>
+        <div class="form-error hidden" id="cfgFErr"></div>
+      </div>
+      <div class="cfg-modal-foot">
+        <button class="dp-btn ghost" id="cfgModalCancel">Cancel</button>
+        <button class="dp-btn primary" id="cfgModalSave">Save set point</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====================== STUDIO (implementer) ====================== -->
+  <section class="view view-studio hidden" id="view-studio">
+    <div class="studio-head">
+      <div>
+        <h2>Set Point Studio</h2>
+        <p class="muted">Define unit processes, add set points & sensors, drag-arrange the operator dashboard layout.</p>
+      </div>
+      <div class="studio-head-right">
+        <span class="dash-version">Current published · v<b id="studioVersion">1</b></span>
+        <button class="dp-btn ghost" id="studioPreview">Preview as operator</button>
+        <button class="dp-btn primary" id="studioPublish">Publish to operators</button>
+      </div>
+    </div>
+    <div class="studio-shell">
+      <aside class="studio-palette">
+        <div class="palette-section">
+          <div class="palette-title">UNIT PROCESSES</div>
+          <div id="studioUpList" class="palette-list"></div>
+          <button class="palette-add" id="studioAddUp">+ New unit process</button>
+        </div>
+        <div class="palette-section">
+          <div class="palette-title">ADD TO CANVAS</div>
+          <div class="palette-widget" draggable="true" data-add="setpoint">
+            <span class="pw-ic">▦</span><div><b>Set point</b><small>Operator-adjustable value</small></div>
+          </div>
+          <div class="palette-widget" draggable="true" data-add="sensor">
+            <span class="pw-ic">⏵</span><div><b>Live sensor</b><small>Read-only PLC value</small></div>
+          </div>
+          <div class="palette-widget" draggable="true" data-add="header">
+            <span class="pw-ic">H</span><div><b>Group header</b><small>Section divider with title</small></div>
+          </div>
+          <div class="palette-widget" draggable="true" data-add="divider">
+            <span class="pw-ic">―</span><div><b>Divider</b><small>Thin separator line</small></div>
+          </div>
+          <div class="palette-widget" draggable="true" data-add="note">
+            <span class="pw-ic">¶</span><div><b>Note</b><small>Static text block</small></div>
+          </div>
+        </div>
+      </aside>
+      <main class="studio-canvas">
+        <div class="canvas-head">
+          <div>
+            <input type="text" id="studioUpName" class="canvas-up-name" placeholder="Unit process name" />
+            <div class="canvas-up-meta"><span id="studioUpEquipCount">0 equipment</span> · <span id="studioUpSpCount">0 widgets</span></div>
+          </div>
+          <div class="canvas-head-actions">
+            <button class="dp-btn ghost sm" id="studioEditEquip">Edit equipment</button>
+            <button class="dp-btn ghost sm danger" id="studioDeleteUp">Delete UP</button>
+          </div>
+        </div>
+        <div class="canvas-grid" id="studioCanvas"></div>
+      </main>
+      <aside class="studio-inspector" id="studioInspector">
+        <div class="insp-empty">Pick a widget to edit its properties.</div>
+      </aside>
+    </div>
+  </section>
+</main>
+
+<!-- ====================== EQUIPMENT PICKER MODAL (Studio) ====================== -->
+<div id="equipPickerModal" class="modal hidden">
+  <div class="modal-card sp-modal">
+    <div class="sp-modal-head">
+      <h2>Equipment linked to this unit process</h2>
+      <button class="sp-modal-x" id="equipPickerClose">✕</button>
+    </div>
+    <div class="sp-modal-body">
+      <div class="ms-menu-list" id="equipPickerList" style="max-height:380px;overflow:auto"></div>
+    </div>
+    <div class="sp-modal-foot">
+      <button class="dp-btn primary" id="equipPickerSave">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====================== VERSION NUDGE BANNER ====================== -->
+<div id="versionNudge" class="version-nudge hidden">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+  <span>New dashboard layout available · <button id="versionReload">refresh now</button></span>
+</div>
+
+<!-- ====================== SET POINTS DRAWER (operator editor) ====================== -->
+<aside class="dp-side wide hidden" id="setPointsPanel" aria-label="Set Points">
+  <div class="dp-side-head">
+    <div class="dp-side-head-left">
+      <span class="dp-side-icon-tile">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h6"/><path d="M14 12h6"/><circle cx="12" cy="12" r="2"/><path d="M12 6V3"/><path d="M12 21v-3"/></svg>
+      </span>
+      <div>
+        <div class="dp-side-overline">UNIT PROCESSES</div>
+        <div class="dp-side-title">Adani SBR Group</div>
+        <div class="dp-side-sub"><b id="spDrawerCount">0</b> unit processes · <b id="spCount">0</b> set points</div>
+      </div>
+    </div>
+    <button class="dp-side-close" id="closeSetPoints">✕</button>
+  </div>
+  <div class="sp-drawer-toolbar">
+    <div class="sp-drawer-search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="search" id="spDrawerSearch" placeholder="Search unit process, set point or HMI tag…" />
+    </div>
+  </div>
+  <div class="config-mode-banner hidden" id="configBanner">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+    <span>Configuration mode — you can add or remove equipment & set points per unit process.</span>
+  </div>
+  <div class="sp-drawer-body" id="spDrawerBody"></div>
+</aside>
+
+<!-- ====================== GROUP CONTROL SIDE PANEL ====================== -->
+<aside class="dp-side hidden" id="groupPanel" aria-label="Group Control">
+  <div class="dp-side-head">
+    <div class="dp-side-head-left">
+      <span class="dp-side-icon-tile">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9" stroke-dasharray="2 4"/></svg>
+      </span>
+      <div>
+        <div class="dp-side-overline">GROUP CONTROL</div>
+        <div class="dp-side-title" id="groupTitle">Adani SBR Group</div>
+        <div class="dp-side-sub"><b id="groupCount">16</b> equipments</div>
+      </div>
+    </div>
+    <button class="dp-side-close" id="closeGroupPanel">✕</button>
+  </div>
+
+  <div class="dp-side-body">
+    <!-- GROUP MODE CARD -->
+    <div class="dp-card">
+      <div class="dp-card-head">
+        <div class="dp-card-title">Group Mode</div>
+      </div>
+      <div class="dp-card-row">
+        <span class="k">STATUS:</span>
+        <span class="v" id="groupModeStatus">—</span>
+      </div>
+      <div class="dp-alert warn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+        <div>
+          <div class="t1">Group control unavailable</div>
+          <div class="t2">Remote control not configured</div>
+        </div>
+      </div>
+      <button class="dp-btn ghost full" id="refreshStatus">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+        Refresh status
+      </button>
+    </div>
+
+    <!-- EQUIPMENTS LIST CARD -->
+    <div class="dp-card">
+      <div class="dp-card-head">
+        <div>
+          <div class="dp-card-title">Equipments</div>
+          <div class="dp-card-sub">Control individual equipments in this group.</div>
+        </div>
+        <span class="dp-pill" id="equipCountPill">16 equipments</span>
+      </div>
+      <div class="dp-equip-list" id="equipList"></div>
+    </div>
+  </div>
+</aside>
+
+<!-- ====================== SET POINT EDIT NOTICE MODAL ====================== -->
+<div id="spNotice" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-icon warn">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+    </div>
+    <h2>Set point change will alter equipment behaviour</h2>
+    <p class="muted" id="spNoticeBody">Updating this set point will change how the PLC drives the linked equipment. Logic is unchanged — only the threshold value is overridden.</p>
+    <div class="sp-impact" id="spImpactList"></div>
+    <div class="modal-actions">
+      <button class="dp-btn ghost" id="spNoticeCancel">Cancel</button>
+      <button class="dp-btn primary" id="spNoticeConfirm">Apply override</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====================== TECHNICAL REMOTE LOADER ====================== -->
+<div id="remoteLoader" class="rl hidden" aria-hidden="true">
+  <div class="rl-card">
+    <div class="rl-head">
+      <div class="rl-head-left">
+        <span class="rl-led"></span>
+        <span class="rl-tag">REMOTE LINK · NEGOTIATING</span>
+      </div>
+      <span class="rl-host" id="rlHost">PLC-MUM-01 :: 10.42.7.18</span>
+    </div>
+    <div class="rl-bar"><div class="rl-bar-fill" id="rlBarFill"></div></div>
+    <div class="rl-log" id="rlLog"></div>
+    <div class="rl-foot">
+      <span>TLS 1.3 · AES-256-GCM</span>
+      <span id="rlFootStatus">handshake in progress…</span>
+    </div>
+  </div>
+</div>
+
+<!-- PROCESSING OVERLAY -->
+<div id="procOverlay" class="modal hidden">
+  <div class="modal-card proc-card">
+    <div class="proc-spinner"><div class="ring"></div><div class="ring"></div></div>
+    <h2 id="procTitle">Updating set point</h2>
+    <p class="muted" id="procSub">Writing the new value to the PLC…</p>
+    <div class="proc-steps">
+      <div class="ps" data-step="1"><span class="dot"></span><span>Validating</span></div>
+      <div class="ps" data-step="2"><span class="dot"></span><span>Sending to server</span></div>
+      <div class="ps" data-step="3"><span class="dot"></span><span>PLC confirmation</span></div>
+    </div>
+    <div class="proc-fallback-note">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>
+      <span>PLC fallback logic is unchanged. The PLC continues to protect equipment under fault conditions.</span>
+    </div>
+  </div>
+</div>
+
+<!-- NOTIFICATION CONFIG POPOVER -->
+<div id="notifyPopover" class="modal hidden">
+  <div class="modal-card notify-card">
+    <div class="sp-modal-head">
+      <h2 id="notifyTitle">Notify on change</h2>
+      <button class="sp-modal-x" id="notifyClose">✕</button>
+    </div>
+    <div class="sp-modal-body">
+      <p class="muted">Select recipients and channels for this set point. Recipients will be notified whenever the value changes.</p>
+      <div class="notify-section-label">Recipients</div>
+      <div class="notify-users" id="notifyUsers"></div>
+      <div class="notify-section-label">Channels</div>
+      <div class="notify-channels" id="notifyChannels"></div>
+    </div>
+    <div class="sp-modal-foot">
+      <button class="dp-btn ghost" id="notifyCancel">Cancel</button>
+      <button class="dp-btn primary" id="notifySave">Save preferences</button>
+    </div>
+  </div>
+</div>
+
+<!-- WARNING POPUP -->
+<div id="scWarn" class="modal hidden">
+  <div class="modal-card sc-warn">
+    <div class="sc-warn-head">
+      <div class="sc-warn-icon">⚠</div>
+      <div>
+        <h2>Value outside safe range</h2>
+        <p class="muted">The system warns — it does not block setpoint changes.</p>
+      </div>
+    </div>
+    <div class="sc-warn-body" id="scWarnBody">—</div>
+    <div class="sc-foot">
+      <button class="dp-btn ghost" id="scWarnCancel">Cancel</button>
+      <button class="dp-btn danger" id="scWarnOverride">Override &amp; apply</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="assets/sbr-section.js"></script>
+<script src="assets/sbr-basins.js"></script>
+<script src="assets/setpoints.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
