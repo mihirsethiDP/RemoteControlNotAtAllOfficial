@@ -902,6 +902,25 @@ function renderCfgUpCard(up) {
             : `<div class="cfg-sp-empty">No set points yet. Add the thresholds (DO, level, time, flow, pressure, etc.) that drive this unit process.</div>`
         }</div>
       </div>
+
+      <div class="cfg-section">
+        <div class="cfg-section-head">
+          <div class="cfg-section-title">Step 4 · Live sensor widgets <span class="muted" style="font-weight:500;text-transform:none;letter-spacing:.2px">— shown on the client drawer</span></div>
+        </div>
+        <div class="cfg-sensor-autocomplete" data-up-id="${up.id}">
+          <input type="text" class="cfg-sensor-input" placeholder="Type to search a sensor by name or HMI tag…" autocomplete="off" />
+          <div class="cfg-sensor-suggest hidden"></div>
+        </div>
+        <div class="cfg-sensor-list">${
+          (up.sensorWidgetIds||[]).length
+            ? (up.sensorWidgetIds||[]).map(sid => {
+                const sen = (window.SENSORS||[]).find(s => s.id === sid);
+                if (!sen) return `<div class="cfg-sensor-chip missing">Missing sensor <code>${sid}</code><button class="chip-x" data-sensor-remove="${sid}">×</button></div>`;
+                return `<div class="cfg-sensor-chip"><div class="cs-name">${escapeHtml(sen.name)}</div><code class="cs-tag">${sen.tag}</code><span class="cs-unit">${sen.unit||""}</span><button class="chip-x" data-sensor-remove="${sid}" title="Remove">×</button></div>`;
+              }).join("")
+            : `<div class="cfg-sensor-empty">No widgets yet. Map a sensor to display its live reading on the client drawer.</div>`
+        }</div>
+      </div>
     </div>
   `;
 
@@ -947,6 +966,50 @@ function renderCfgUpCard(up) {
   acInput.addEventListener("input", renderSuggest);
   acInput.addEventListener("click", e => e.stopPropagation());
   acInput.addEventListener("blur", () => setTimeout(() => acSuggest.classList.add("hidden"), 150));
+
+  // Sensor-widget autocomplete (Step 4)
+  const sRoot = card.querySelector('.cfg-sensor-autocomplete');
+  const sInput = sRoot.querySelector('.cfg-sensor-input');
+  const sSuggest = sRoot.querySelector('.cfg-sensor-suggest');
+  const renderSensorSuggest = () => {
+    const q = sInput.value.trim().toLowerCase();
+    const taken = new Set(up.sensorWidgetIds || []);
+    const results = (window.SENSORS||[])
+      .filter(sen => !taken.has(sen.id))
+      .filter(sen => !q || sen.name.toLowerCase().includes(q) || (sen.tag||"").toLowerCase().includes(q))
+      .slice(0, 8);
+    if (!results.length) {
+      sSuggest.innerHTML = `<div class="cfg-eq-sugg-empty">${q ? `No sensor matches "${q}".` : "All sensors already mapped."}</div>`;
+    } else {
+      sSuggest.innerHTML = results.map(sen => `
+        <button type="button" class="cfg-eq-sugg-item" data-add-sensor="${sen.id}">
+          <span class="cfg-eq-sugg-name">${escapeHtml(sen.name)}</span>
+          <span class="cfg-eq-sugg-meta">${sen.tag} · ${sen.unit||""}</span>
+        </button>
+      `).join("");
+      sSuggest.querySelectorAll('[data-add-sensor]').forEach(b => {
+        b.addEventListener("mousedown", ev => {
+          ev.preventDefault();
+          up.sensorWidgetIds = [...(up.sensorWidgetIds||[]), b.dataset.addSensor];
+          renderCfgUps();
+        });
+      });
+    }
+    sSuggest.classList.remove("hidden");
+  };
+  sInput.addEventListener("focus", e => { e.stopPropagation(); renderSensorSuggest(); });
+  sInput.addEventListener("input", renderSensorSuggest);
+  sInput.addEventListener("click", e => e.stopPropagation());
+  sInput.addEventListener("blur", () => setTimeout(() => sSuggest.classList.add("hidden"), 150));
+
+  card.querySelectorAll('[data-sensor-remove]').forEach(btn => {
+    btn.addEventListener("click", e => {
+      e.stopPropagation();
+      const id = btn.dataset.sensorRemove;
+      up.sensorWidgetIds = (up.sensorWidgetIds||[]).filter(x => x !== id);
+      renderCfgUps();
+    });
+  });
 
   card.querySelectorAll('[data-eq-remove]').forEach(btn => {
     btn.addEventListener("click", e => {
@@ -2031,6 +2094,10 @@ function renderUpCard(up) {
         ${configMode ? `<button class="up-add-sp" data-add-sp>+ Add set point</button>` : ""}
       </div>
       <div class="up-sp-list" data-sp-list></div>
+      <div class="up-section-row" data-sensor-row hidden>
+        <div class="up-section-label">Live Readings</div>
+      </div>
+      <div class="up-sensor-grid" data-sensor-grid></div>
     </div>
   `;
   card.querySelector("[data-up-toggle]").addEventListener("click", () => toggleUpCard(card, up));
@@ -2097,6 +2164,27 @@ function populateUpExpansion(card, up) {
   }
   if (configMode) {
     card.querySelector("[data-add-sp]")?.addEventListener("click", e => { e.stopPropagation(); openAddSetpointForm(card, up); });
+  }
+
+  // Live sensor widgets — configured via Step 4 on the cfg-up-card
+  const sensorIds = up.sensorWidgetIds || [];
+  const sensorRow  = card.querySelector("[data-sensor-row]");
+  const sensorGrid = card.querySelector("[data-sensor-grid]");
+  if (sensorGrid) {
+    sensorGrid.innerHTML = "";
+    if (sensorIds.length) {
+      sensorRow.removeAttribute("hidden");
+      for (const sid of sensorIds) {
+        const sen = (window.SENSORS||[]).find(s => s.id === sid);
+        if (!sen) continue;
+        const cell = document.createElement("div");
+        cell.className = "up-sensor-cell";
+        cell.appendChild(renderSensorWidget(sen));
+        sensorGrid.appendChild(cell);
+      }
+    } else {
+      sensorRow.setAttribute("hidden", "");
+    }
   }
 }
 
